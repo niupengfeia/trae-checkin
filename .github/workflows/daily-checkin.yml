@@ -42,5 +42,4 @@ jobs:
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
         run: |
           python trae_checkin.py
-        working-directory: trae-checkin
         continue-on-error: false
