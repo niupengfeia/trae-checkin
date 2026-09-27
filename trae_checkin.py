@@ -348,11 +348,18 @@ def _status_style(result: dict) -> tuple[str, str]:
         return "❌", "red"
 
 
-def send_feishu_notification(webhook_url: str, results: list[dict], timestamp: int = None) -> bool:
+def send_feishu_notification(
+    webhook_url: str,
+    results: list[dict],
+    timestamp: int = None,
+    bitable_url: str = "",
+    github_actions_url: str = "",
+) -> bool:
     """
     发送飞书卡片消息通知。
     - 单账号：发送详情卡片
     - 多账号：发送汇总卡片
+    - 支持底部按钮（查看日志、手动补签）
     """
     if not webhook_url:
         return False
@@ -395,7 +402,6 @@ def send_feishu_notification(webhook_url: str, results: list[dict], timestamp: i
                     )
             else:
                 err = r.get("error", "未知错误")
-                # 截断太长的错误信息
                 if len(err) > 80:
                     err = err[:80] + "..."
                 detail_lines.append(f"{icon} **{name}**：{err}")
@@ -428,6 +434,29 @@ def send_feishu_notification(webhook_url: str, results: list[dict], timestamp: i
                 ],
             },
         ]
+
+        # 底部按钮（如果配置了对应 URL）
+        actions = []
+        if bitable_url:
+            actions.append({
+                "tag": "button",
+                "text": {"tag": "plain_text", "content": "📋 查看签到日志"},
+                "type": "default",
+                "url": bitable_url,
+            })
+        if github_actions_url:
+            actions.append({
+                "tag": "button",
+                "text": {"tag": "plain_text", "content": "🔄 手动补签"},
+                "type": "primary",
+                "url": github_actions_url,
+            })
+        if actions:
+            elements.append({"tag": "hr"})
+            elements.append({
+                "tag": "action",
+                "actions": actions,
+            })
 
         payload = {
             "msg_type": "interactive",
@@ -550,7 +579,17 @@ def main():
     # 4. 飞书通知
     feishu_webhook = os.environ.get("FEISHU_WEBHOOK_URL", "").strip()
     if feishu_webhook:
-        send_feishu_notification(feishu_webhook, all_results, timestamp)
+        # 按钮链接（直接从环境变量读取，用户自己配置完整 URL）
+        bitable_url = os.environ.get("FEISHU_BITABLE_URL", "").strip()
+        github_actions_url = os.environ.get("GITHUB_ACTIONS_URL", "").strip()
+
+        send_feishu_notification(
+            feishu_webhook,
+            all_results,
+            timestamp,
+            bitable_url=bitable_url,
+            github_actions_url=github_actions_url,
+        )
 
     # 5. 输出结果
     if args.json:

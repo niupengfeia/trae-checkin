@@ -352,7 +352,7 @@ def write_checkin_log(
         status_text = "失败"
 
     fields = {
-        "日期": int(time.time() * 1000),
+        "签到时间": int(time.time() * 1000),
         "账号": account_name,
         "状态": status_text,
         "获得积分": earned,

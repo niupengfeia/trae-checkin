@@ -4,8 +4,11 @@ on:
   schedule:
     # 每天北京时间 09:00 执行（UTC 01:00）
     - cron: '0 1 * * *'
-  # 支持手动触发
+  # 支持手动触发（GitHub Actions 页面点按钮）
   workflow_dispatch:
+  # 支持 API 触发（repository_dispatch，预留）
+  repository_dispatch:
+    types: [checkin]
 
 jobs:
   checkin:
@@ -40,6 +43,10 @@ jobs:
 
           # ===== 飞书通知（可选） =====
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+          # 飞书卡片上的"查看签到日志"按钮链接（你的多维表格日志表 URL）
+          FEISHU_BITABLE_URL: ${{ secrets.FEISHU_BITABLE_URL }}
+          # 飞书卡片上的"手动补签"按钮链接（GitHub Actions 页面 URL）
+          GITHUB_ACTIONS_URL: ${{ secrets.GITHUB_ACTIONS_URL }}
         run: |
           python trae_checkin.py
         continue-on-error: false

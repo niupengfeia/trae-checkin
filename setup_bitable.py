@@ -40,7 +40,7 @@ ACCOUNT_TABLE_FIELDS = [
 
 # 签到日志表字段
 LOG_TABLE_FIELDS = [
-    ("日期", 5, {"date_formatter": "yyyy/MM/dd"}),
+    ("签到时间", 5, {"date_formatter": "yyyy/MM/dd HH:mm:ss"}),
     ("账号", 1, None),
     ("状态", 3, {
         "options": [

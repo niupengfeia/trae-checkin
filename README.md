@@ -9,8 +9,9 @@
 - 🔄 **Token 自动续期**：每次运行自动调用 GetUserToken 换取最新 Token
 - 🛡️ **幂等安全**：已签到自动跳过，重复运行无副作用
 - 👥 **多账号支持**：飞书多维表格管理，完全在飞书里操作
-- 🔔 **飞书通知**：签到结果自动推送到飞书群（汇总卡片）
-- 📋 **签到日志**：自动写入多维表格，历史记录可查
+- 🔔 **飞书通知**：签到结果自动推送到飞书群（汇总卡片 + 快捷按钮）
+- 🔘 **卡片按钮**：一键跳转查看日志 / 手动补签
+- 📋 **签到日志**：自动写入多维表格，精确到秒，历史记录可查
 - 📊 **JSON 输出**：方便接入其他监控系统
 
 ## 📁 文件说明
@@ -190,8 +191,15 @@ git push -u origin main
 | `FEISHU_BITABLE_ACCOUNT_TABLE` | 账号表 table_id | ✅ |
 | `FEISHU_BITABLE_LOG_TABLE` | 签到日志表 table_id | ❌ 可选 |
 | `FEISHU_WEBHOOK_URL` | 飞书群机器人 Webhook | ❌ 推荐 |
+| `FEISHU_BITABLE_URL` | 多维表格日志表完整 URL（卡片"查看日志"按钮跳转） | ❌ 可选 |
+| `GITHUB_ACTIONS_URL` | GitHub Actions 页面 URL（卡片"手动补签"按钮跳转） | ❌ 可选 |
 
 > 💡 单账号模式只配 `TRAE_COOKIE` 就行，不需要飞书应用和多维表格。
+>
+> 💡 **卡片按钮说明**：配置了 `FEISHU_BITABLE_URL` 和 `GITHUB_ACTIONS_URL` 后，飞书通知卡片底部会出现「查看签到日志」和「手动补签」按钮，方便直接跳转操作。
+>
+> 手动补签按钮的 URL 是你的 Actions 页面地址，格式类似：
+> `https://github.com/你的用户名/trae-checkin/actions/workflows/daily-checkin.yml`
 
 ---
 
@@ -304,6 +312,7 @@ A: 风险极低。脚本调用的是官方 API，行为和手动签到完全一�
 
 ## 📝 更新日志
 
+- **v2.2.0** - 飞书卡片新增快捷按钮（查看日志 / 手动补签）；签到日志时间精确到秒；新增 repository_dispatch 触发方式
 - **v2.1.0** - 移除 JWT Token 字段（Cookie 模式更优），修复 GitHub Actions 路径问题
 - **v2.0.0** - 新增 Cookie 模式（推荐），适配 Cloud-IDE-JWT 认证格式
 - **v1.0.0** - 初始版本，支持 API 签到 + 飞书通知 + 多账号管理
