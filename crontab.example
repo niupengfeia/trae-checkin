@@ -1,0 +1,25 @@
+# ========================================
+# TraeCode 每日自动签到 - crontab 配置示例
+# ========================================
+#
+# 使用方法：
+#   1. 编辑 crontab: crontab -e
+#   2. 将下面的配置复制进去（修改路径和 token）
+#   3. 保存退出
+#
+# 注意事项：
+#   - 确保 python3 和 requests 库已安装
+#   - 将 TRAE_REFRESH_TOKEN 替换为你自己的
+#   - 将 /path/to/trae-checkin 替换为脚本实际路径
+#
+
+# 每天早上 9:00 执行签到
+0 9 * * * TRAE_REFRESH_TOKEN=你的refresh_token /path/to/trae-checkin/run_checkin.sh
+
+# 可选：每天多跑几次作为备份（幂等安全，已签到不会重复）
+0 9 * * * TRAE_REFRESH_TOKEN=你的refresh_token /path/to/trae-checkin/run_checkin.sh
+0 12 * * * TRAE_REFRESH_TOKEN=你的refresh_token /path/to/trae-checkin/run_checkin.sh
+0 20 * * * TRAE_REFRESH_TOKEN=你的refresh_token /path/to/trae-checkin/run_checkin.sh
+
+# 查看日志
+# tail -f /path/to/trae-checkin/checkin.log
