@@ -35,7 +35,6 @@ from feishu_bitable import FeishuBitable
 ACCOUNT_TABLE_FIELDS = [
     ("账号名称", 1, None),
     ("Cookie", 1, None),
-    ("JWT Token", 1, None),
     ("启用", 7, None),
 ]
 
