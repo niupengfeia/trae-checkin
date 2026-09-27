@@ -581,7 +581,7 @@ def main():
     if feishu_webhook:
         # 按钮链接（直接从环境变量读取，用户自己配置完整 URL）
         bitable_url = os.environ.get("FEISHU_BITABLE_URL", "").strip()
-        github_actions_url = os.environ.get("GITHUB_ACTIONS_URL", "").strip()
+        github_actions_url = os.environ.get("ACTIONS_URL", "").strip()
 
         send_feishu_notification(
             feishu_webhook,

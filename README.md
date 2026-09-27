@@ -192,11 +192,11 @@ git push -u origin main
 | `FEISHU_BITABLE_LOG_TABLE` | 签到日志表 table_id | ❌ 可选 |
 | `FEISHU_WEBHOOK_URL` | 飞书群机器人 Webhook | ❌ 推荐 |
 | `FEISHU_BITABLE_URL` | 多维表格日志表完整 URL（卡片"查看日志"按钮跳转） | ❌ 可选 |
-| `GITHUB_ACTIONS_URL` | GitHub Actions 页面 URL（卡片"手动补签"按钮跳转） | ❌ 可选 |
+| `ACTIONS_URL` | GitHub Actions 页面 URL（卡片"手动补签"按钮跳转） | ❌ 可选 |
 
 > 💡 单账号模式只配 `TRAE_COOKIE` 就行，不需要飞书应用和多维表格。
 >
-> 💡 **卡片按钮说明**：配置了 `FEISHU_BITABLE_URL` 和 `GITHUB_ACTIONS_URL` 后，飞书通知卡片底部会出现「查看签到日志」和「手动补签」按钮，方便直接跳转操作。
+> 💡 **卡片按钮说明**：配置了 `FEISHU_BITABLE_URL` 和 `ACTIONS_URL` 后，飞书通知卡片底部会出现「查看签到日志」和「手动补签」按钮，方便直接跳转操作。
 >
 > 手动补签按钮的 URL 是你的 Actions 页面地址，格式类似：
 > `https://github.com/你的用户名/trae-checkin/actions/workflows/daily-checkin.yml`

@@ -46,7 +46,7 @@ jobs:
           # 飞书卡片上的"查看签到日志"按钮链接（你的多维表格日志表 URL）
           FEISHU_BITABLE_URL: ${{ secrets.FEISHU_BITABLE_URL }}
           # 飞书卡片上的"手动补签"按钮链接（GitHub Actions 页面 URL）
-          GITHUB_ACTIONS_URL: ${{ secrets.GITHUB_ACTIONS_URL }}
+          ACTIONS_URL: ${{ secrets.ACTIONS_URL }}
         run: |
           python trae_checkin.py
         continue-on-error: false
