@@ -346,7 +346,6 @@ def write_checkin_log(
     account_name: str,
     success: bool,
     action: str,
-    credit: int = 0,
     earned: int = 0,
     error_msg: str = "",
 ):
@@ -354,11 +353,10 @@ def write_checkin_log(
     写入签到日志到多维表格。
 
     预期表格字段：
-      - 日期 (date) - 签到日期
+      - 签到时间 (date) - 签到时间
       - 账号 (text) - 账号名称
       - 状态 (single_select) - 成功/失败/已签到
-      - 获得积分 (number) - 本次获得积分
-      - 当前积分 (number) - 当前总积分
+      - 本次获得积分 (number) - 本次签到获得的积分；已签到/失败为 0
       - 错误信息 (text) - 失败时的错误信息
     """
     if success and action == "claimed":
@@ -372,8 +370,7 @@ def write_checkin_log(
         "签到时间": int(time.time() * 1000),
         "账号": account_name,
         "状态": status_text,
-        "获得积分": earned,
-        "当前积分": credit,
+        "本次获得积分": earned if action == "claimed" else 0,
     }
     if error_msg:
         fields["错误信息"] = error_msg[:500]  # 限制长度
