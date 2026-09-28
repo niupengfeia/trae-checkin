@@ -59,12 +59,12 @@ except ImportError:
 # ========== TraeCode API 配置 ==========
 
 CLOUDIDE_BASE = "https://api.trae.cn/cloudide/api/v3"
-TRAE_BASE = "https://api.trae.cn/trae/api/v2"
+UG_BASE = "https://ug-normal.trae.ai/trae/api/v2"
 
 GET_USER_TOKEN_URL = f"{CLOUDIDE_BASE}/common/GetUserToken"
-CHECKIN_STATUS_URL = f"{TRAE_BASE}/ug/checkin_credits/status"
-CHECKIN_CLAIM_URL = f"{TRAE_BASE}/ug/checkin_credits/claim"
-REFRESH_TOKEN_URL = f"{TRAE_BASE}/auth/refresh"
+CHECKIN_STATUS_URL = f"{UG_BASE}/ug/checkin_credits/status"
+CHECKIN_CLAIM_URL = f"{UG_BASE}/ug/checkin_credits/claim"
+REFRESH_TOKEN_URL = f"{UG_BASE}/ug/auth/refresh"
 
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
