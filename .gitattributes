@@ -1,0 +1,3 @@
+# Windows 运行包：.bat 依赖 CRLF 换行（goto/标签解析），检出时强制 CRLF
+trae-collect-win/*.bat text eol=crlf
+trae-collect-win/*.txt text eol=crlf
