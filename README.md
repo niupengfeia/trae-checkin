@@ -254,7 +254,7 @@ FEISHU_BITABLE_ACCOUNT_TABLE=账号表table_id \
 python3 collect_account_info.py --push --name 账号2
 ```
 
-脚本自动采集 RefreshToken + 设备指纹，写入多维表格（同名账号更新、否则新建，并自动清空旧 Cookie 改走 RefreshToken 模式）。有几个账号就在各自机器上各跑一次。
+脚本自动采集 RefreshToken + 设备指纹，写入多维表格（账号名称与已有名称「完全相等」才更新该行、否则新建，并自动清空旧 Cookie 改走 RefreshToken 模式）。有几个账号就在各自机器上各跑一次。
 
 **方式 B（手动）**：打开「账号列表」表 → 新增一行：
    - **账号名称**：自定义显示名（如"主号"、"工作号"）
@@ -283,7 +283,7 @@ python3 collect_account_info.py --push --name 账号2
 | 操作 | 在哪里做 |
 |------|----------|
 | 添加新账号 | 该账号客户端的机器上运行 `collect_account_info.py --push --name 账号名` |
-| 更新/刷新凭证 | 同上（同名账号自动覆盖更新，含设备参数） |
+| 更新/刷新凭证 | 同上（账号名称完全相等时覆盖该行，含设备参数） |
 | 禁用账号 | 取消「启用」列的勾选 |
 | 修改显示名 | 直接改「账号名称」列的文字 |
 | 查看历史 | 打开「签到日志」表 |

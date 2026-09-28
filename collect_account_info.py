@@ -20,7 +20,7 @@ Trae 账号信息一键采集脚本
 
 --push 一键写入（需 pip3 install requests 并配置环境变量）：
   FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_BITABLE_APP_TOKEN / FEISHU_BITABLE_ACCOUNT_TABLE
-  同名账号（--name，缺省用用户ID）已存在则更新该行，否则新建一行；
+  账号名称与表格中已有名称「完全相等」（区分大小写）才覆盖该行，否则新建一行；
   写入会清空该行旧 Cookie，改走 RefreshToken 模式。
 
 仅依赖 Python 标准库（AES 解密依次尝试 pycryptodome / cryptography / openssl 命令行）。
@@ -175,7 +175,9 @@ def decrypt_auth_value(b64: str) -> dict:
 def push_to_bitable(name: str, values: dict) -> bool:
     """
     把采集值写入飞书多维表格「账号列表」。
-    同名账号已存在则更新该行，否则新建一行；写入会清空旧 Cookie（改走 RefreshToken 模式）。
+    账号名称「完全相等」才覆盖该行，否则新建一行（区分大小写）：
+    「牛鹏飞的traeCode」与「牛鹏飞的TraeCode」视为不同账号，各自成行。
+    写入会清空旧 Cookie（改走 RefreshToken 模式）。
     """
     try:
         from feishu_bitable import FeishuBitable, _extract_text
@@ -216,7 +218,8 @@ def push_to_bitable(name: str, values: dict) -> bool:
             "启用": True,
         }
 
-        # 同名账号已存在则更新，否则新建
+        # 账号名称完全相等才覆盖该行，否则新建一行
+        # （区分大小写：牛鹏飞的traeCode ≠ 牛鹏飞的TraeCode，两个名字各自成行）
         record_id = ""
         for rec in bitable.list_records(table_id):
             if _extract_text(rec.get("fields", {}).get("账号名称")) == name:
