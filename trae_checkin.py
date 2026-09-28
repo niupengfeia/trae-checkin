@@ -59,12 +59,13 @@ except ImportError:
 # ========== TraeCode API 配置 ==========
 
 CLOUDIDE_BASE = "https://api.trae.cn/cloudide/api/v3"
-UG_BASE = "https://ug-normal.trae.ai/trae/api/v2"
+# CN 区域网页版 WEBSITE_API_URL = https://api.trae.cn（ug-normal.trae.ai 是国际版域名，国内账号 404）
+TRAE_BASE = "https://api.trae.cn/trae/api/v2"
 
 GET_USER_TOKEN_URL = f"{CLOUDIDE_BASE}/common/GetUserToken"
-CHECKIN_STATUS_URL = f"{UG_BASE}/ug/checkin_credits/status"
-CHECKIN_CLAIM_URL = f"{UG_BASE}/ug/checkin_credits/claim"
-REFRESH_TOKEN_URL = f"{UG_BASE}/ug/auth/refresh"
+CHECKIN_STATUS_URL = f"{TRAE_BASE}/ug/checkin_credits/status"
+CHECKIN_CLAIM_URL = f"{TRAE_BASE}/ug/checkin_credits/claim"
+REFRESH_TOKEN_URL = f"{TRAE_BASE}/auth/refresh"
 
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
@@ -242,6 +243,8 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
         status = get_checkin_status(jwt_token, cookie)
         already_checked = status.get("checked_in", False)
         current_credit = status.get("credits", 0)
+        enable = status.get("enable", True)
+        did_checked_in = status.get("did_checked_in", False)
 
         result["current_credit"] = current_credit
         result["status_detail"] = status
@@ -250,6 +253,16 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
             result["success"] = True
             result["action"] = "skipped"
             result["message"] = f"今日已签到，当前积分: {current_credit}"
+        elif not enable:
+            # 与网页版守卫一致：enable=false 不发起领取（此时领取会报 9004）
+            result["success"] = True
+            result["action"] = "disabled"
+            result["message"] = f"签到功能未开放(enable=false)，当前积分: {current_credit}"
+        elif did_checked_in:
+            # 网页版守卫：did_checked_in=true 时不再领取
+            result["success"] = True
+            result["action"] = "skipped"
+            result["message"] = f"今日已领过(did_checked_in)，当前积分: {current_credit}"
         else:
             if status_only:
                 result["success"] = True
@@ -352,7 +365,7 @@ def _status_style(result: dict) -> tuple[str, str]:
         return "🎉", "green"
     elif success and action == "skipped":
         return "✅", "blue"
-    elif success and action == "status_only":
+    elif success and action in ("status_only", "disabled"):
         return "ℹ️", "blue"
     else:
         return "❌", "red"
@@ -405,6 +418,10 @@ def send_feishu_notification(
                 if r.get("action") == "claimed":
                     detail_lines.append(
                         f"{icon} **{name}**：+{r.get('earned_credit', 0)} 积分（当前 {r.get('current_credit', 0)}）"
+                    )
+                elif r.get("action") == "disabled":
+                    detail_lines.append(
+                        f"{icon} **{name}**：签到未开放（当前 {r.get('current_credit', 0)} 积分）"
                     )
                 else:
                     detail_lines.append(
@@ -575,6 +592,8 @@ def main():
                 print(f"     {icon} 签到成功 +{result['earned_credit']} 积分")
             elif result["success"] and result["action"] == "skipped":
                 print(f"     {icon} 今日已签到 ({result['current_credit']} 积分)")
+            elif result["success"] and result["action"] == "disabled":
+                print(f"     {icon} 签到功能未开放 ({result['current_credit']} 积分)")
             elif result["success"] and result["action"] == "status_only":
                 print(f"     {icon} 未签到 ({result['current_credit']} 积分)")
             else:
