@@ -47,6 +47,8 @@ import os
 import sys
 import json
 import time
+import uuid
+import base64
 import argparse
 
 try:
@@ -153,20 +155,60 @@ def get_valid_jwt_token(account: dict) -> dict:
     raise RuntimeError("未配置任何认证信息（cookie / jwt_token / refresh_token）")
 
 
-# ========== 签到接口 ==========
+# ========== 签到接口（客户端风格，与官方桌面客户端/开源项目 trae-work-checkin-plus 一致） ==========
 
-def _auth_headers(jwt_token: str, cookie: str = "") -> dict:
-    """构造带认证的请求头（与网页版一致：authorization 小写 + 带 cookie）"""
-    headers = {
-        **DEFAULT_HEADERS,
-        "authorization": f"Cloud-IDE-JWT {jwt_token}",
+# 客户端应用 ID（官方桌面客户端上报的固定值）
+APP_ID = "6eefa01c-1036-4c7e-9ca5-d891f63bfcd8"
+
+# 设备指纹默认取自本机 Trae CN 客户端 storage.json，可用环境变量覆盖：
+#   TRAE_DEVICE_ID / TRAE_MACHINE_ID / TRAE_IDE_VERSION
+FP_DEFAULTS = {
+    "device_id": "92837310108621",
+    "machine_id": "f858aa6f29a5f6dd4e7c91c325e4713ab36be6ce90d9e6f27053d6b8421b02a0",
+    "ide_version": "2.3.87416",
+    "device_type": "mac",
+    "os_version": "Darwin 27.0.0",
+}
+
+
+def _uid_from_jwt(jwt_token: str) -> str:
+    """从 JWT payload 解析用户 ID（data.id），cookie 模式下一般不需要"""
+    try:
+        payload = jwt_token.split(".")[1]
+        payload += "=" * (-len(payload) % 4)
+        data = json.loads(base64.urlsafe_b64decode(payload))
+        return str(data.get("data", {}).get("id", ""))
+    except Exception:
+        return ""
+
+
+def _auth_headers(jwt_token: str, user_id: str = "") -> dict:
+    """
+    构造客户端风格的认证头。
+    签到/领取接口按客户端请求特征校验订单：缺设备指纹头会报 9004
+    （The submitted order parameters are incorrect）。
+    """
+    device_id = os.environ.get("TRAE_DEVICE_ID", "").strip() or FP_DEFAULTS["device_id"]
+    machine_id = os.environ.get("TRAE_MACHINE_ID", "").strip() or FP_DEFAULTS["machine_id"]
+    ide_version = os.environ.get("TRAE_IDE_VERSION", "").strip() or FP_DEFAULTS["ide_version"]
+    return {
+        "Authorization": f"Cloud-IDE-JWT {jwt_token}",
+        "X-Cloudide-Token": jwt_token,
+        "x-uid": str(user_id or ""),
+        "x-app-id": APP_ID,
+        "x-device-id": device_id,
+        "x-machine-id": machine_id,
+        "x-request-id": str(uuid.uuid4()),
+        "x-ide-version": ide_version,
+        "x-ide-version-code": ide_version.replace(".", ""),
+        "x-device-type": FP_DEFAULTS["device_type"],
+        "x-os-version": FP_DEFAULTS["os_version"],
+        "Content-Type": "application/json",
+        "Accept": "application/json",
     }
-    if cookie:
-        headers["Cookie"] = cookie
-    return headers
 
 
-def get_checkin_status(jwt_token: str, cookie: str = "") -> dict:
+def get_checkin_status(jwt_token: str, user_id: str = "") -> dict:
     """
     查询今日签到状态。
     返回字段示例：
@@ -182,8 +224,8 @@ def get_checkin_status(jwt_token: str, cookie: str = "") -> dict:
     """
     resp = requests.post(
         CHECKIN_STATUS_URL,
-        headers=_auth_headers(jwt_token, cookie),
-        json={"req_source": 3},
+        headers=_auth_headers(jwt_token, user_id),
+        json={},
         timeout=15,
     )
     data = resp.json()
@@ -194,12 +236,12 @@ def get_checkin_status(jwt_token: str, cookie: str = "") -> dict:
     return data
 
 
-def claim_checkin(jwt_token: str, cookie: str = "", tenant_id: str = "", user_id: str = "") -> dict:
-    """领取今日签到积分"""
+def claim_checkin(jwt_token: str, user_id: str = "") -> dict:
+    """领取今日签到积分（空请求体，客户端不发 req_source）"""
     resp = requests.post(
         CHECKIN_CLAIM_URL,
-        headers=_auth_headers(jwt_token, cookie),
-        json={"req_source": 3},
+        headers=_auth_headers(jwt_token, user_id),
+        json={},
         timeout=15,
     )
     data = resp.json()
@@ -235,12 +277,10 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
         # 1. 获取有效 JWT token + 用户信息
         token_info = get_valid_jwt_token(account)
         jwt_token = token_info["token"]
-        tenant_id = token_info.get("tenant_id", "")
-        user_id = token_info.get("user_id", "")
-        cookie = account.get("cookie", "").strip()
+        user_id = token_info.get("user_id", "") or _uid_from_jwt(jwt_token)
 
         # 2. 查询签到状态
-        status = get_checkin_status(jwt_token, cookie)
+        status = get_checkin_status(jwt_token, user_id)
         already_checked = status.get("checked_in", False)
         current_credit = status.get("credits", 0)
         enable = status.get("enable", True)
@@ -270,17 +310,25 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
                 result["message"] = f"今日未签到，当前积分: {current_credit}"
             else:
                 # 3. 领取签到积分
-                claim_data = claim_checkin(jwt_token, cookie, tenant_id, user_id)
-                earned = claim_data.get("credits", 0)
+                claim_data = claim_checkin(jwt_token, user_id)
+                earned = (claim_data.get("gained_credits")
+                          or claim_data.get("credits_gained")
+                          or claim_data.get("reward")
+                          or claim_data.get("extra_credits")
+                          or claim_data.get("credits")
+                          or 0)
                 result["success"] = True
                 result["action"] = "claimed"
                 result["earned_credit"] = earned
                 result["claim_detail"] = claim_data
                 result["message"] = f"签到成功，获得 {earned} 积分"
 
-                # 领取后更新当前积分（如果返回了的话）
-                if claim_data.get("credits"):
-                    result["current_credit"] = claim_data["credits"]
+                # 领取后重查状态拿最新总积分（与网页版行为一致）
+                try:
+                    new_status = get_checkin_status(jwt_token, user_id)
+                    result["current_credit"] = new_status.get("credits", current_credit)
+                except Exception:
+                    pass
 
     except Exception as e:
         result["success"] = False
