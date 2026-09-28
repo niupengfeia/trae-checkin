@@ -123,30 +123,31 @@ def refresh_access_token(refresh_token: str) -> dict:
 
 # ========== 获取有效 JWT Token ==========
 
-def get_valid_jwt_token(account: dict) -> str:
+def get_valid_jwt_token(account: dict) -> dict:
     """
-    从账号配置中获取有效的 JWT token。
+    从账号配置中获取有效的 JWT token 及用户信息。
     优先级：cookie > jwt_token > refresh_token
-    返回 JWT token 字符串（用于 Cloud-IDE-JWT header）。
+    返回 {"token": "...", "tenant_id": "...", "user_id": "..."}
     """
     # 方式 1：Cookie 模式（推荐）
     cookie = account.get("cookie", "").strip()
     if cookie:
-        token_data = get_token_from_cookie(cookie)
-        return token_data["token"]
+        return get_token_from_cookie(cookie)
 
     # 方式 2：直接配置 JWT token
     jwt_token = account.get("jwt_token", "").strip()
     if jwt_token:
-        return jwt_token
+        return {"token": jwt_token, "tenant_id": "", "user_id": ""}
 
-    # 方式 3：refresh_token（legacy，Bearer 格式，需要转换思路）
-    # 注意：旧接口返回的是 Bearer token，可能不适用于 Cloud-IDE-JWT
+    # 方式 3：refresh_token（legacy）
     refresh_token = account.get("refresh_token", "").strip()
     if refresh_token:
-        # 尝试用 refresh_token 换 access_token（旧接口返回 Bearer 格式）
         token_data = refresh_access_token(refresh_token)
-        return token_data.get("accessToken", "")
+        return {
+            "token": token_data.get("accessToken", ""),
+            "tenant_id": token_data.get("tenantId", ""),
+            "user_id": token_data.get("userId", ""),
+        }
 
     raise RuntimeError("未配置任何认证信息（cookie / jwt_token / refresh_token）")
 
@@ -188,19 +189,53 @@ def get_checkin_status(jwt_token: str) -> dict:
     return data
 
 
-def claim_checkin(jwt_token: str) -> dict:
-    """领取今日签到积分"""
-    resp = requests.post(
-        CHECKIN_CLAIM_URL,
-        headers=_auth_headers(jwt_token),
-        timeout=15,
+def claim_checkin(jwt_token: str, tenant_id: str = "", user_id: str = "") -> dict:
+    """领取今日签到积分（自动尝试多种参数组合）"""
+    # 依次尝试不同的请求体格式
+    bodies = [
+        {},
+        {"scene": "daily_checkin"},
+        {"source": "checkin"},
+        {"tenant_id": tenant_id} if tenant_id else None,
+        {"user_id": user_id, "tenant_id": tenant_id} if tenant_id else None,
+        {"type": "checkin"},
+        {"action": "claim"},
+    ]
+
+    last_error = ""
+    for body in bodies:
+        if body is None:
+            continue
+        try:
+            resp = requests.post(
+                CHECKIN_CLAIM_URL,
+                headers=_auth_headers(jwt_token),
+                json=body,
+                timeout=15,
+            )
+            data = resp.json()
+            code = data.get("code")
+            msg = data.get("message", "")
+
+            # code=0 表示成功
+            if code == 0:
+                return data
+
+            # 如果返回的不是参数错误（9004），而是其他错误（如"已签到"），说明参数对了
+            if code != 9004:
+                # 可能是"今日已签到"之类的，也算参数正确
+                if "already" in msg.lower() or "已" in msg or "checked" in msg.lower():
+                    return data
+                last_error = f"code={code}, msg={msg}"
+
+        except Exception as e:
+            last_error = str(e)
+            continue
+
+    raise RuntimeError(
+        f"领取签到积分失败: code=9004, msg=The submitted order parameters are incorrect. "
+        f"最后错误: {last_error}"
     )
-    data = resp.json()
-    if data.get("code") != 0:
-        raise RuntimeError(
-            f"领取签到积分失败: code={data.get('code')}, msg={data.get('message')}"
-        )
-    return data
 
 
 # ========== 单账号签到 ==========
@@ -225,8 +260,11 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
     }
 
     try:
-        # 1. 获取有效 JWT token
-        jwt_token = get_valid_jwt_token(account)
+        # 1. 获取有效 JWT token + 用户信息
+        token_info = get_valid_jwt_token(account)
+        jwt_token = token_info["token"]
+        tenant_id = token_info.get("tenant_id", "")
+        user_id = token_info.get("user_id", "")
 
         # 2. 查询签到状态
         status = get_checkin_status(jwt_token)
@@ -247,7 +285,7 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
                 result["message"] = f"今日未签到，当前积分: {current_credit}"
             else:
                 # 3. 领取签到积分
-                claim_data = claim_checkin(jwt_token)
+                claim_data = claim_checkin(jwt_token, tenant_id, user_id)
                 earned = claim_data.get("credits", 0)
                 result["success"] = True
                 result["action"] = "claimed"
