@@ -456,7 +456,6 @@ def write_logs_to_bitable(results: list[dict]):
                 account_name=r.get("name", "未知"),
                 success=r.get("success", False),
                 action=r.get("action", "unknown"),
-                credit=r.get("current_credit", 0),
                 earned=r.get("earned_credit", 0),
                 error_msg=r.get("error", ""),
             )

@@ -178,7 +178,7 @@ python3 setup_bitable.py
 脚本会自动为两张表创建所需字段：
 
 **账号列表**：账号名称、Cookie、RefreshToken、用户ID、设备ID、机器ID、客户端版本、启用
-**签到日志**：日期、账号、状态（单选）、获得积分、当前积分、错误信息
+**签到日志**：签到时间、账号、状态（单选）、本次获得积分、错误信息（已签到/失败本次获得积分为 0）
 
 7. 脚本输出的两个 **table_id** 保存好，后面配置要用。
 
@@ -277,7 +277,7 @@ python3 collect_account_info.py --push --name 账号2
 
 ## ✅ 完成！
 
-每天 **北京时间 09:00** 自动签到，结果推送到飞书群。
+每天 **北京时间 凌晨 01:00** 自动签到，结果推送到飞书群。
 
 ---
 
@@ -302,8 +302,8 @@ python3 collect_account_info.py --push --name 账号2
 # 上传脚本到服务器
 # 编辑 crontab
 crontab -e
-# 每天 9:00 执行
-0 9 * * * cd /opt/trae-checkin && TRAE_COOKIE="xxx" python3 trae_checkin.py >> checkin.log 2>&1
+# 每天 凌晨 1:00 执行
+0 1 * * * cd /opt/trae-checkin && TRAE_COOKIE="xxx" python3 trae_checkin.py >> checkin.log 2>&1
 ```
 
 ### 云函数（阿里云/腾讯云等）
@@ -378,6 +378,7 @@ A: 风险极低。脚本调用的是官方 API，行为和手动签到完全一�
 
 ## 📝 更新日志
 
+- **v2.3.3** - 签到日志表字段简化：获得积分/当前积分 合并为「本次获得积分」（仅记录本次签到所得，已签到/失败为 0）；定时改为北京时间凌晨 01:00 执行
 - **v2.3.2** - 修复 Windows 包中文 bat 在中文系统下运行乱码/命令被切碎的问题：`一键采集.bat` 改为 GBK 编码原生格式，且 git 按原样字节入库（clone 或 GitHub 下载 ZIP 均不会改变文件内容）
 - **v2.3.1** - 新增 Windows 免安装采集包 `trae-collect-win/`（自带便携版 Python + pycryptodome，双击 bat 输出账号凭证，手动粘贴到多维表格，无需任何配置）；明确 `--push` 账号名称完全相等（区分大小写）才覆盖
 - **v2.3.0** - 新增 RefreshToken 模式（客户端长期凭证，ExchangeToken 自动换新）；多账号支持每账号独立设备指纹（签到状态按设备隔离）；自动适配 Trae 版 / TraeWork 版 ClientID；移除已失效的旧版刷新接口；新增 collect_account_info.py 一键采集，支持 `--push` 直写多维表格
