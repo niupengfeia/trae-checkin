@@ -190,52 +190,19 @@ def get_checkin_status(jwt_token: str) -> dict:
 
 
 def claim_checkin(jwt_token: str, tenant_id: str = "", user_id: str = "") -> dict:
-    """领取今日签到积分（自动尝试多种参数组合）"""
-    # 依次尝试不同的请求体格式
-    bodies = [
-        {},
-        {"scene": "daily_checkin"},
-        {"source": "checkin"},
-        {"tenant_id": tenant_id} if tenant_id else None,
-        {"user_id": user_id, "tenant_id": tenant_id} if tenant_id else None,
-        {"type": "checkin"},
-        {"action": "claim"},
-    ]
-
-    last_error = ""
-    for body in bodies:
-        if body is None:
-            continue
-        try:
-            resp = requests.post(
-                CHECKIN_CLAIM_URL,
-                headers=_auth_headers(jwt_token),
-                json=body,
-                timeout=15,
-            )
-            data = resp.json()
-            code = data.get("code")
-            msg = data.get("message", "")
-
-            # code=0 表示成功
-            if code == 0:
-                return data
-
-            # 如果返回的不是参数错误（9004），而是其他错误（如"已签到"），说明参数对了
-            if code != 9004:
-                # 可能是"今日已签到"之类的，也算参数正确
-                if "already" in msg.lower() or "已" in msg or "checked" in msg.lower():
-                    return data
-                last_error = f"code={code}, msg={msg}"
-
-        except Exception as e:
-            last_error = str(e)
-            continue
-
-    raise RuntimeError(
-        f"领取签到积分失败: code=9004, msg=The submitted order parameters are incorrect. "
-        f"最后错误: {last_error}"
+    """领取今日签到积分"""
+    resp = requests.post(
+        CHECKIN_CLAIM_URL,
+        headers=_auth_headers(jwt_token),
+        json={"req_source": 3},
+        timeout=15,
     )
+    data = resp.json()
+    if data.get("code") != 0:
+        raise RuntimeError(
+            f"领取签到积分失败: code={data.get('code')}, msg={data.get('message')}"
+        )
+    return data
 
 
 # ========== 单账号签到 ==========
