@@ -154,15 +154,18 @@ def get_valid_jwt_token(account: dict) -> dict:
 
 # ========== 签到接口 ==========
 
-def _auth_headers(jwt_token: str) -> dict:
-    """构造带认证的请求头"""
-    return {
+def _auth_headers(jwt_token: str, cookie: str = "") -> dict:
+    """构造带认证的请求头（与网页版一致：authorization 小写 + 带 cookie）"""
+    headers = {
         **DEFAULT_HEADERS,
-        "Authorization": f"Cloud-IDE-JWT {jwt_token}",
+        "authorization": f"Cloud-IDE-JWT {jwt_token}",
     }
+    if cookie:
+        headers["Cookie"] = cookie
+    return headers
 
 
-def get_checkin_status(jwt_token: str) -> dict:
+def get_checkin_status(jwt_token: str, cookie: str = "") -> dict:
     """
     查询今日签到状态。
     返回字段示例：
@@ -178,7 +181,8 @@ def get_checkin_status(jwt_token: str) -> dict:
     """
     resp = requests.post(
         CHECKIN_STATUS_URL,
-        headers=_auth_headers(jwt_token),
+        headers=_auth_headers(jwt_token, cookie),
+        json={"req_source": 3},
         timeout=15,
     )
     data = resp.json()
@@ -189,11 +193,11 @@ def get_checkin_status(jwt_token: str) -> dict:
     return data
 
 
-def claim_checkin(jwt_token: str, tenant_id: str = "", user_id: str = "") -> dict:
+def claim_checkin(jwt_token: str, cookie: str = "", tenant_id: str = "", user_id: str = "") -> dict:
     """领取今日签到积分"""
     resp = requests.post(
         CHECKIN_CLAIM_URL,
-        headers=_auth_headers(jwt_token),
+        headers=_auth_headers(jwt_token, cookie),
         json={"req_source": 3},
         timeout=15,
     )
@@ -232,9 +236,10 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
         jwt_token = token_info["token"]
         tenant_id = token_info.get("tenant_id", "")
         user_id = token_info.get("user_id", "")
+        cookie = account.get("cookie", "").strip()
 
         # 2. 查询签到状态
-        status = get_checkin_status(jwt_token)
+        status = get_checkin_status(jwt_token, cookie)
         already_checked = status.get("checked_in", False)
         current_credit = status.get("credits", 0)
 
@@ -252,7 +257,7 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
                 result["message"] = f"今日未签到，当前积分: {current_credit}"
             else:
                 # 3. 领取签到积分
-                claim_data = claim_checkin(jwt_token, tenant_id, user_id)
+                claim_data = claim_checkin(jwt_token, cookie, tenant_id, user_id)
                 earned = claim_data.get("credits", 0)
                 result["success"] = True
                 result["action"] = "claimed"
