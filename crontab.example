@@ -13,8 +13,8 @@
 #   - 将 /path/to/trae-checkin 替换为脚本实际路径
 #
 
-# 每天 凌晨 1:00 执行签到
-0 1 * * * TRAE_REFRESH_TOKEN=你的refresh_token /path/to/trae-checkin/run_checkin.sh
+# 每天 下午 17:30 执行签到
+30 17 * * * TRAE_REFRESH_TOKEN=你的refresh_token /path/to/trae-checkin/run_checkin.sh
 
 # 可选：每天多跑几次作为备份（幂等安全，已签到不会重复）
 0 9 * * * TRAE_REFRESH_TOKEN=你的refresh_token /path/to/trae-checkin/run_checkin.sh

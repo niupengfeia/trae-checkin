@@ -2,8 +2,8 @@ name: TraeCode Daily Check-in
 
 on:
   schedule:
-    # 每天北京时间 凌晨 01:00 执行（UTC 17:00）
-    - cron: '0 17 * * *'
+    # 每天北京时间 下午 17:30 执行（UTC 09:30）
+    - cron: '30 9 * * *'
   # 支持手动触发（GitHub Actions 页面点按钮）
   workflow_dispatch:
   # 支持 API 触发（repository_dispatch，预留）
