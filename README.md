@@ -378,6 +378,7 @@ A: 风险极低。脚本调用的是官方 API，行为和手动签到完全一�
 
 ## 📝 更新日志
 
+- **v2.3.2** - 修复 Windows 包中文 bat 在中文系统下运行乱码/命令被切碎的问题：`一键采集.bat` 改为 GBK 编码原生格式，且 git 按原样字节入库（clone 或 GitHub 下载 ZIP 均不会改变文件内容）
 - **v2.3.1** - 新增 Windows 免安装采集包 `trae-collect-win/`（自带便携版 Python + pycryptodome，双击 bat 输出账号凭证，手动粘贴到多维表格，无需任何配置）；明确 `--push` 账号名称完全相等（区分大小写）才覆盖
 - **v2.3.0** - 新增 RefreshToken 模式（客户端长期凭证，ExchangeToken 自动换新）；多账号支持每账号独立设备指纹（签到状态按设备隔离）；自动适配 Trae 版 / TraeWork 版 ClientID；移除已失效的旧版刷新接口；新增 collect_account_info.py 一键采集，支持 `--push` 直写多维表格
 - **v2.2.0** - 飞书卡片新增快捷按钮（查看日志 / 手动补签）；签到日志时间精确到秒；新增 repository_dispatch 触发方式

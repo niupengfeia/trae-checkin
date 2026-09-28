@@ -1,3 +1,5 @@
-# Windows 运行包：.bat 依赖 CRLF 换行（goto/标签解析），检出时强制 CRLF
-trae-collect-win/*.bat text eol=crlf
+# Windows 运行包：bat 为 GBK 编码 + CRLF，必须原样字节入库
+# （-text 禁用换行归一化：git clone 与 GitHub 下载 ZIP 均原样交付，
+#   UTF-8 归一化会导致中文 Windows 的 cmd 解析乱码、命令被切碎）
+trae-collect-win/*.bat -text
 trae-collect-win/*.txt text eol=crlf
