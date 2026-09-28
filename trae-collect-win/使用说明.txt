@@ -36,3 +36,5 @@ Trae 账号信息一键采集（Windows 免安装版）
    python\python.exe collect_account_info.py --list
 2. RefreshToken 有效期约 6 个月，过期后重新在客户端登录并再跑一次本脚本即可。
 3. 输出包含敏感凭证，仅粘贴到自己的多维表格，请勿外传。
+4. 「一键采集.bat」为 GBK（ANSI）编码，是中文 Windows 原生格式，双击即可正常运行；
+   请勿用编辑器把它转存为 UTF-8，否则运行时中文提示会乱码、命令会执行失败。
