@@ -21,6 +21,7 @@
 trae-checkin/
 ├── trae_checkin.py          # 主签到脚本（单账号/多账号）
 ├── collect_account_info.py  # 账号信息一键采集（RefreshToken + 设备指纹）
+├── trae-collect-win/        # Windows 免安装采集包（自带便携 Python，双击运行）
 ├── feishu_bitable.py        # 飞书多维表格模块（读账号、写日志）
 ├── setup_bitable.py         # 多维表格字段初始化脚本
 ├── run_checkin.sh           # Shell 包装脚本（带日志）
@@ -256,6 +257,8 @@ python3 collect_account_info.py --push --name 账号2
 
 脚本自动采集 RefreshToken + 设备指纹，写入多维表格（账号名称与已有名称「完全相等」才更新该行、否则新建，并自动清空旧 Cookie 改走 RefreshToken 模式）。有几个账号就在各自机器上各跑一次。
 
+> 💡 **Windows 免安装版**：仓库内 `trae-collect-win/` 目录自带便携版 Python，无需安装任何环境。拷到目标电脑后，右键编辑其中的「一键采集.bat」，替换 4 个飞书配置（获取方式见目录内 `使用说明.txt`），双击运行即可。
+
 **方式 B（手动）**：打开「账号列表」表 → 新增一行：
    - **账号名称**：自定义显示名（如"主号"、"工作号"）
    - **RefreshToken** + **用户ID/设备ID/机器ID/客户端版本**：粘贴各自机器上 `collect_account_info.py` 的输出值
@@ -375,6 +378,7 @@ A: 风险极低。脚本调用的是官方 API，行为和手动签到完全一�
 
 ## 📝 更新日志
 
+- **v2.3.1** - 新增 Windows 免安装采集包 `trae-collect-win/`（自带便携版 Python，双击 bat 即可采集推送）；明确 `--push` 账号名称完全相等（区分大小写）才覆盖
 - **v2.3.0** - 新增 RefreshToken 模式（客户端长期凭证，ExchangeToken 自动换新）；多账号支持每账号独立设备指纹（签到状态按设备隔离）；自动适配 Trae 版 / TraeWork 版 ClientID；移除已失效的旧版刷新接口；新增 collect_account_info.py 一键采集，支持 `--push` 直写多维表格
 - **v2.2.0** - 飞书卡片新增快捷按钮（查看日志 / 手动补签）；签到日志时间精确到秒；新增 repository_dispatch 触发方式
 - **v2.1.0** - 移除 JWT Token 字段（Cookie 模式更优），修复 GitHub Actions 路径问题
