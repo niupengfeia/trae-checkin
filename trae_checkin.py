@@ -4,15 +4,22 @@ TraeCode / TraeWork 每日自动签到脚本（多账号版）
 
 通过 API 直接调用签到接口，不需要打开客户端。
 支持单账号（环境变量）和多账号（飞书多维表格）两种模式。
-支持两种认证方式：
-  - Cookie 模式（推荐）：用 sessionid cookie 自动换 JWT token，有效期长
+支持三种认证方式：
+  - RefreshToken 模式（推荐）：客户端采集的长期凭证，自动调 ExchangeToken 换新 Token
+  - Cookie 模式：用 sessionid cookie 自动换 JWT token，有效期长
   - JWT Token 模式：直接配置 JWT token，有效期约 8 小时
-  - Refresh Token 模式（legacy）：旧版 refresh_token 方式
+支持每账号独立设备指纹（签到状态按设备指纹隔离，多设备多账号必填，
+用 collect_account_info.py 在各账号登录的客户端上一键采集）。
 支持飞书群通知（单账号详情卡片 / 多账号汇总卡片）。
 
 用法：
-  # 单账号模式（Cookie 方式，推荐）
+  # 单账号模式（Cookie 方式）
   TRAE_COOKIE="sessionid=xxx; ..." python3 trae_checkin.py
+
+  # 单账号模式（RefreshToken 方式，推荐）
+  TRAE_REFRESH_TOKEN=xxx TRAE_USER_ID=123 \
+    TRAE_DEVICE_ID=111 TRAE_MACHINE_ID=222 TRAE_IDE_VERSION=2.3.87416 \
+    python3 trae_checkin.py
 
   # 单账号模式（JWT Token 方式）
   TRAE_JWT_TOKEN=xxx python3 trae_checkin.py
@@ -27,10 +34,16 @@ TraeCode / TraeWork 每日自动签到脚本（多账号版）
   # JSON 输出
   python3 trae_checkin.py --json
 
-环境变量（单账号模式，优先级：cookie > jwt_token > refresh_token）：
-  TRAE_COOKIE          - Cookie 字符串（含 sessionid 等），推荐
+环境变量（单账号模式，优先级：cookie > refresh_token > jwt_token）：
+  TRAE_COOKIE          - Cookie 字符串（含 sessionid 等）
+  TRAE_REFRESH_TOKEN   - 客户端采集的 RefreshToken（推荐，collect_account_info.py 获取）
   TRAE_JWT_TOKEN       - JWT access token（Cloud-IDE-JWT 格式）
-  TRAE_REFRESH_TOKEN   - （legacy）refresh_token
+
+环境变量（单账号设备指纹，RefreshToken/多设备多账号时建议配置）：
+  TRAE_USER_ID         - 用户 ID（x-uid）
+  TRAE_DEVICE_ID       - 设备 ID（x-device-id）
+  TRAE_MACHINE_ID      - 机器 ID（x-machine-id）
+  TRAE_IDE_VERSION     - 客户端版本（x-ide-version）
 
 环境变量（多账号/飞书多维表格模式）：
   FEISHU_APP_ID          - 飞书自建应用 App ID
@@ -65,9 +78,15 @@ CLOUDIDE_BASE = "https://api.trae.cn/cloudide/api/v3"
 TRAE_BASE = "https://api.trae.cn/trae/api/v2"
 
 GET_USER_TOKEN_URL = f"{CLOUDIDE_BASE}/common/GetUserToken"
+EXCHANGE_TOKEN_URL = f"{CLOUDIDE_BASE}/trae/oauth/ExchangeToken"
 CHECKIN_STATUS_URL = f"{TRAE_BASE}/ug/checkin_credits/status"
 CHECKIN_CLAIM_URL = f"{TRAE_BASE}/ug/checkin_credits/claim"
-REFRESH_TOKEN_URL = f"{TRAE_BASE}/auth/refresh"
+
+# OAuth ClientID 与客户端类型绑定（逆向自官方客户端 main.js）：
+#   TRAE 版客户端（Trae CN / Trae）默认 ono9krqynydwx5
+#   SOLO 版客户端（TRAE SOLO CN / TRAE SOLO / TraeWork）默认 en1oxy7wnw8j9n
+# RefreshToken 只与其客户端类型匹配的 ClientID 互换，按序自动尝试
+OAUTH_CLIENT_IDS = ["ono9krqynydwx5", "en1oxy7wnw8j9n"]
 
 DEFAULT_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
@@ -106,22 +125,38 @@ def get_token_from_cookie(cookie_str: str) -> dict:
     }
 
 
-# ========== 认证：Refresh Token（legacy） ==========
+# ========== 认证：RefreshToken 换 Token ==========
 
-def refresh_access_token(refresh_token: str) -> dict:
-    """使用 refresh_token 刷新 access_token（旧接口，保留兼容）"""
-    resp = requests.post(
-        REFRESH_TOKEN_URL,
-        json={"refreshToken": refresh_token},
-        headers=DEFAULT_HEADERS,
-        timeout=15,
-    )
-    data = resp.json()
-    if data.get("code") != 0:
-        raise RuntimeError(
-            f"刷新 token 失败: code={data.get('code')}, msg={data.get('message')}"
-        )
-    return data["data"]
+def exchange_token(refresh_token: str, user_id: str = "") -> dict:
+    """
+    使用客户端采集的 RefreshToken 调 ExchangeToken 换取 JWT token。
+    RefreshToken 与客户端类型绑定的 ClientID 匹配（TRAE 版 / SOLO 版默认值不同），
+    按序自动尝试；可重复使用、不使客户端登录态失效。
+    返回 Result 字段：Token / TokenExpireAt / RefreshExpireAt / UserID / BoundDeviceID 等。
+    """
+    last_err = ""
+    for client_id in OAUTH_CLIENT_IDS:
+        try:
+            resp = requests.post(
+                EXCHANGE_TOKEN_URL,
+                json={
+                    "ClientID": client_id,
+                    "RefreshToken": refresh_token,
+                    "ClientSecret": "-",
+                    "UserID": str(user_id or ""),
+                },
+                headers=DEFAULT_HEADERS,
+                timeout=15,
+            )
+            data = resp.json()
+            result = data.get("Result", {})
+            if result.get("Token"):
+                return result
+            err = data.get("ResponseMetadata", {}).get("Error", {})
+            last_err = err.get("Message") or str(data)[:200]
+        except Exception as e:
+            last_err = str(e)
+    raise RuntimeError(f"ExchangeToken 换取失败: {last_err}")
 
 
 # ========== 获取有效 JWT Token ==========
@@ -129,30 +164,32 @@ def refresh_access_token(refresh_token: str) -> dict:
 def get_valid_jwt_token(account: dict) -> dict:
     """
     从账号配置中获取有效的 JWT token 及用户信息。
-    优先级：cookie > jwt_token > refresh_token
+    优先级：cookie > refresh_token > jwt_token
     返回 {"token": "...", "tenant_id": "...", "user_id": "..."}
     """
-    # 方式 1：Cookie 模式（推荐）
+    # 方式 1：Cookie 模式
     cookie = account.get("cookie", "").strip()
     if cookie:
         return get_token_from_cookie(cookie)
 
-    # 方式 2：直接配置 JWT token
+    # 方式 2：RefreshToken 模式（客户端采集，推荐）
+    refresh_token = account.get("refresh_token", "").strip()
+    if refresh_token:
+        user_id = account.get("user_id", "").strip()
+        result = exchange_token(refresh_token, user_id)
+        return {
+            "token": result.get("Token", ""),
+            "expired_at": result.get("TokenExpireAt", ""),
+            "user_id": str(result.get("UserID", "") or user_id),
+            "tenant_id": str(result.get("TenantID", "") or ""),
+        }
+
+    # 方式 3：直接配置 JWT token
     jwt_token = account.get("jwt_token", "").strip()
     if jwt_token:
         return {"token": jwt_token, "tenant_id": "", "user_id": ""}
 
-    # 方式 3：refresh_token（legacy）
-    refresh_token = account.get("refresh_token", "").strip()
-    if refresh_token:
-        token_data = refresh_access_token(refresh_token)
-        return {
-            "token": token_data.get("accessToken", ""),
-            "tenant_id": token_data.get("tenantId", ""),
-            "user_id": token_data.get("userId", ""),
-        }
-
-    raise RuntimeError("未配置任何认证信息（cookie / jwt_token / refresh_token）")
+    raise RuntimeError("未配置任何认证信息（cookie / refresh_token / jwt_token）")
 
 
 # ========== 签到接口（客户端风格，与官方桌面客户端/开源项目 trae-work-checkin-plus 一致） ==========
@@ -182,25 +219,43 @@ def _uid_from_jwt(jwt_token: str) -> str:
         return ""
 
 
-def _auth_headers(jwt_token: str, user_id: str = "") -> dict:
+def _device_params(account: dict = None) -> dict:
+    """
+    解析设备指纹参数。
+    优先级：账号自身配置（多维表格采集值，多账号隔离的关键） > 环境变量 > 内置默认值。
+    """
+    account = account or {}
+
+    def pick(account_key: str, env_key: str) -> str:
+        v = (account.get(account_key, "") or os.environ.get(env_key, "")).strip()
+        return v or FP_DEFAULTS[account_key]
+
+    return {
+        "device_id": pick("device_id", "TRAE_DEVICE_ID"),
+        "machine_id": pick("machine_id", "TRAE_MACHINE_ID"),
+        "ide_version": pick("ide_version", "TRAE_IDE_VERSION"),
+    }
+
+
+def _auth_headers(jwt_token: str, user_id: str = "", account: dict = None) -> dict:
     """
     构造客户端风格的认证头。
-    签到/领取接口按客户端请求特征校验订单：缺设备指纹头会报 9004
-    （The submitted order parameters are incorrect）。
+    签到/领取接口按设备指纹校验并隔离签到状态：
+      - 缺设备指纹头会报 9004（The submitted order parameters are incorrect）
+      - 签到状态按设备指纹隔离，账号2 必须用账号2 客户端采集的指纹
+    account 为 None 时（单账号环境变量模式）回退到 TRAE_* 环境变量 / 内置默认值。
     """
-    device_id = os.environ.get("TRAE_DEVICE_ID", "").strip() or FP_DEFAULTS["device_id"]
-    machine_id = os.environ.get("TRAE_MACHINE_ID", "").strip() or FP_DEFAULTS["machine_id"]
-    ide_version = os.environ.get("TRAE_IDE_VERSION", "").strip() or FP_DEFAULTS["ide_version"]
+    fp = _device_params(account)
     return {
         "Authorization": f"Cloud-IDE-JWT {jwt_token}",
         "X-Cloudide-Token": jwt_token,
         "x-uid": str(user_id or ""),
         "x-app-id": APP_ID,
-        "x-device-id": device_id,
-        "x-machine-id": machine_id,
+        "x-device-id": fp["device_id"],
+        "x-machine-id": fp["machine_id"],
         "x-request-id": str(uuid.uuid4()),
-        "x-ide-version": ide_version,
-        "x-ide-version-code": ide_version.replace(".", ""),
+        "x-ide-version": fp["ide_version"],
+        "x-ide-version-code": fp["ide_version"].replace(".", ""),
         "x-device-type": FP_DEFAULTS["device_type"],
         "x-os-version": FP_DEFAULTS["os_version"],
         "Content-Type": "application/json",
@@ -208,9 +263,9 @@ def _auth_headers(jwt_token: str, user_id: str = "") -> dict:
     }
 
 
-def get_checkin_status(jwt_token: str, user_id: str = "") -> dict:
+def get_checkin_status(jwt_token: str, user_id: str = "", account: dict = None) -> dict:
     """
-    查询今日签到状态。
+    查询今日签到状态（按账号设备指纹隔离）。
     返回字段示例：
       {
         "checked_in": true,
@@ -224,7 +279,7 @@ def get_checkin_status(jwt_token: str, user_id: str = "") -> dict:
     """
     resp = requests.post(
         CHECKIN_STATUS_URL,
-        headers=_auth_headers(jwt_token, user_id),
+        headers=_auth_headers(jwt_token, user_id, account),
         json={},
         timeout=15,
     )
@@ -236,11 +291,11 @@ def get_checkin_status(jwt_token: str, user_id: str = "") -> dict:
     return data
 
 
-def claim_checkin(jwt_token: str, user_id: str = "") -> dict:
+def claim_checkin(jwt_token: str, user_id: str = "", account: dict = None) -> dict:
     """领取今日签到积分（空请求体，客户端不发 req_source）"""
     resp = requests.post(
         CHECKIN_CLAIM_URL,
-        headers=_auth_headers(jwt_token, user_id),
+        headers=_auth_headers(jwt_token, user_id, account),
         json={},
         timeout=15,
     )
@@ -260,9 +315,11 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
 
     account 字段：
       - name: 账号显示名
-      - cookie: Cookie 字符串（推荐）
+      - cookie: Cookie 字符串
+      - refresh_token: RefreshToken（客户端采集，推荐）
       - jwt_token: JWT token（可选）
-      - refresh_token: 旧版 refresh_token（可选，legacy）
+      - user_id / device_id / machine_id / ide_version:
+        设备指纹参数（签到状态按设备隔离，多账号须各自客户端采集）
     """
     result = {
         "success": False,
@@ -277,10 +334,14 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
         # 1. 获取有效 JWT token + 用户信息
         token_info = get_valid_jwt_token(account)
         jwt_token = token_info["token"]
-        user_id = token_info.get("user_id", "") or _uid_from_jwt(jwt_token)
+        user_id = (
+            token_info.get("user_id", "")
+            or str(account.get("user_id", "")).strip()
+            or _uid_from_jwt(jwt_token)
+        )
 
-        # 2. 查询签到状态
-        status = get_checkin_status(jwt_token, user_id)
+        # 2. 查询签到状态（带账号专属设备指纹）
+        status = get_checkin_status(jwt_token, user_id, account)
         already_checked = status.get("checked_in", False)
         current_credit = status.get("credits", 0)
         enable = status.get("enable", True)
@@ -310,7 +371,7 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
                 result["message"] = f"今日未签到，当前积分: {current_credit}"
             else:
                 # 3. 领取签到积分
-                claim_data = claim_checkin(jwt_token, user_id)
+                claim_data = claim_checkin(jwt_token, user_id, account)
                 earned = (claim_data.get("gained_credits")
                           or claim_data.get("credits_gained")
                           or claim_data.get("reward")
@@ -325,7 +386,7 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
 
                 # 领取后重查状态拿最新总积分（与网页版行为一致）
                 try:
-                    new_status = get_checkin_status(jwt_token, user_id)
+                    new_status = get_checkin_status(jwt_token, user_id, account)
                     result["current_credit"] = new_status.get("credits", current_credit)
                 except Exception:
                     pass
@@ -574,9 +635,13 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 单账号环境变量（优先级从高到低）：
-  TRAE_COOKIE          Cookie 字符串（推荐，有效期长）
+  TRAE_COOKIE          Cookie 字符串（有效期长）
+  TRAE_REFRESH_TOKEN   客户端采集的 RefreshToken（推荐，collect_account_info.py 获取）
   TRAE_JWT_TOKEN       JWT access token
-  TRAE_REFRESH_TOKEN   旧版 refresh_token（兼容）
+
+设备指纹环境变量（单账号模式可选；多账号模式从多维表格按账号读取，无需配置）：
+  TRAE_USER_ID / TRAE_DEVICE_ID / TRAE_MACHINE_ID / TRAE_IDE_VERSION
+  （不配则用内置默认指纹；多设备多账号时必须每账号配各自的值）
 
 多账号环境变量（飞书多维表格）：
   FEISHU_APP_ID              飞书应用 App ID
@@ -589,8 +654,12 @@ def main():
   FEISHU_WEBHOOK_URL         飞书群机器人 Webhook
 
 示例：
-  # Cookie 模式（推荐）
+  # Cookie 模式
   TRAE_COOKIE="sessionid=xxx; ..." python3 trae_checkin.py
+
+  # RefreshToken 模式（推荐，采集方式见 collect_account_info.py）
+  TRAE_REFRESH_TOKEN=xxx TRAE_DEVICE_ID=111 \\
+    TRAE_MACHINE_ID=222 TRAE_IDE_VERSION=2.3.87416 python3 trae_checkin.py
 
   # 多账号（多维表格）
   FEISHU_APP_ID=cli_xxx FEISHU_APP_SECRET=yyy \\

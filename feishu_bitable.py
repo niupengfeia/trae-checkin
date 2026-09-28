@@ -245,18 +245,30 @@ def load_accounts_from_bitable(bitable: FeishuBitable, table_id: str) -> list[di
     预期表格字段（优先级从高到低）：
       - 账号名称 (text) - 自定义显示名称，随便起什么名字都可以
       - Cookie (text) - 浏览器 Cookie 字符串（推荐，有效期长）
-      - JWT Token (text) - JWT access token（Cloud-IDE-JWT 格式）
-      - Refresh Token (text) - 旧版 refresh_token（兼容）
+      - RefreshToken (text) - 客户端采集的长期凭证（collect_account_info.py 一键采集）
+      - 用户ID / 设备ID / 机器ID / 客户端版本 (text) - 客户端设备指纹（x-uid / x-device-id / x-machine-id / x-ide-version）
       - 启用 (checkbox) - 是否启用，不填默认为启用
+
+    签到服务按设备指纹区分签到状态，多设备多账号时
+    每个账号必须填自己客户端采集的设备参数。
 
     支持的字段名别名（不区分大小写，匹配到第一个即可）：
       - 名称类：账号名称 / 名称 / 备注 / name
       - Cookie 类：Cookie / cookie / Cookie 字符串
-      - Token 类：JWT Token / jwt_token / jwt / Token / token / Refresh Token / refresh_token
+      - Token 类：RefreshToken / Refresh Token / refresh_token / JWT Token / jwt_token / jwt / Token / token
+      - 设备类：用户ID / UserID / user_id；设备ID / DeviceID / device_id；
+                机器ID / MachineID / machine_id；客户端版本 / IDE版本 / ide_version / 版本
       - 启用类：启用 / enabled / 状态
     """
     records = bitable.list_records(table_id)
     accounts = []
+
+    def pick(*names: str) -> str:
+        for n in names:
+            v = _extract_text(fields.get(n))
+            if v:
+                return v
+        return ""
 
     for record in records:
         fields = record.get("fields", {})
@@ -277,22 +289,23 @@ def load_accounts_from_bitable(bitable: FeishuBitable, table_id: str) -> list[di
             or _extract_text(fields.get("Cookie 字符串"))
         )
 
-        # ---- JWT Token ----
-        jwt_token = (
-            _extract_text(fields.get("JWT Token"))
-            or _extract_text(fields.get("jwt_token"))
-            or _extract_text(fields.get("jwt"))
-            or _extract_text(fields.get("Access Token"))
-            or _extract_text(fields.get("access_token"))
+        # ---- RefreshToken（客户端采集，推荐） / 旧版 refresh_token ----
+        refresh_token = pick(
+            "RefreshToken", "Refresh Token", "refresh_token",
+            "Token", "token",
         )
 
-        # ---- Refresh Token（legacy）----
-        refresh_token = (
-            _extract_text(fields.get("Refresh Token"))
-            or _extract_text(fields.get("refresh_token"))
-            or _extract_text(fields.get("Token"))
-            or _extract_text(fields.get("token"))
+        # ---- JWT Token ----
+        jwt_token = pick(
+            "JWT Token", "jwt_token", "jwt",
+            "Access Token", "access_token",
         )
+
+        # ---- 设备指纹参数（每账号各自客户端的值）----
+        user_id = pick("用户ID", "UserID", "user_id", "uid")
+        device_id = pick("设备ID", "DeviceID", "device_id")
+        machine_id = pick("机器ID", "MachineID", "machine_id")
+        ide_version = pick("客户端版本", "IDE版本", "IDE Version", "ide_version", "版本")
 
         # ---- 启用状态 ----
         enabled = fields.get("启用", fields.get("enabled", fields.get("状态", True)))
@@ -315,6 +328,10 @@ def load_accounts_from_bitable(bitable: FeishuBitable, table_id: str) -> list[di
             "cookie": cookie,
             "jwt_token": jwt_token,
             "refresh_token": refresh_token,
+            "user_id": user_id,
+            "device_id": device_id,
+            "machine_id": machine_id,
+            "ide_version": ide_version,
             "enabled": enabled,
         })
 
@@ -377,8 +394,9 @@ if __name__ == "__main__":
             print(f"读取到 {len(accounts)} 个账号:")
             for acc in accounts:
                 status = "✅" if acc["enabled"] else "⏸️"
-                auth_type = "Cookie" if acc.get("cookie") else ("JWT" if acc.get("jwt_token") else "Refresh")
-                print(f"  {status} {acc['name']} ({auth_type} 模式)")
+                auth_type = "Cookie" if acc.get("cookie") else ("Refresh" if acc.get("refresh_token") else "JWT")
+                dev = "设备指纹✓" if acc.get("device_id") and acc.get("machine_id") else "设备指纹✗(将用默认指纹)"
+                print(f"  {status} {acc['name']} ({auth_type} 模式, {dev})")
         else:
             print("请配置 FEISHU_BITABLE_ACCOUNT_TABLE 环境变量")
     except Exception as e:

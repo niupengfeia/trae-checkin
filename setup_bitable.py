@@ -32,9 +32,16 @@ from feishu_bitable import FeishuBitable
 # 账号表字段
 # (字段名, 字段类型, 属性)
 # 字段类型: 1=多行文本, 2=数字, 3=单选, 5=日期, 7=复选框
+# RefreshToken + 设备参数字段：签到服务按设备指纹区分签到状态，
+# 多设备多账号时每个账号必须用自己客户端采集的值（collect_account_info.py 一键采集）
 ACCOUNT_TABLE_FIELDS = [
     ("账号名称", 1, None),
     ("Cookie", 1, None),
+    ("RefreshToken", 1, None),
+    ("用户ID", 1, None),
+    ("设备ID", 1, None),
+    ("机器ID", 1, None),
+    ("客户端版本", 1, None),
     ("启用", 7, None),
 ]
 
@@ -161,8 +168,9 @@ def main():
                 print(f"  FEISHU_BITABLE_LOG_TABLE={log_table_id}")
             print()
             print("💡 下一步：")
-            print("  1. 在飞书多维表格的「账号列表」中添加账号")
-            print("  2. 填写账号名称和 Cookie，勾选「启用」")
+            print("  1. 在装了 Trae 客户端并已登录的机器上运行：python3 collect_account_info.py --push --name 账号名")
+            print("     （自动采集 RefreshToken + 设备参数并写入本表，无需手动复制粘贴）")
+            print("  2. 或手动在「账号列表」中填写账号信息，勾选「启用」")
             print("  3. 运行签到脚本测试：python3 trae_checkin.py --status")
         else:
             print("  ⚠️  账号表未找到，请先手动创建")
