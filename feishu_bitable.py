@@ -17,8 +17,51 @@ import sys
 try:
     import requests
 except ImportError:
-    print("请先安装依赖：pip install requests", file=sys.stderr)
-    sys.exit(1)
+    # Windows 免安装采集包等无 requests 环境的标准库兜底
+    # （只覆盖本模块用到的接口：request/post/get + resp.json()）
+    import json as _json
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    class _ShimResponse:
+        def __init__(self, status_code: int, body: bytes):
+            self.status_code = status_code
+            self.text = body.decode("utf-8", errors="replace")
+
+        def json(self):
+            return _json.loads(self.text)
+
+        def raise_for_status(self):
+            if self.status_code >= 400:
+                raise RuntimeError(f"HTTP {self.status_code}: {self.text[:200]}")
+
+    class requests:  # noqa: N801 - 有意与 requests 库同名，保持调用方代码不变
+        @staticmethod
+        def request(method, url, params=None, json=None, data=None, headers=None, timeout=15):
+            if params:
+                url = f"{url}?{urllib.parse.urlencode(params)}"
+            body = None
+            hdrs = dict(headers or {})
+            if json is not None:
+                body = _json.dumps(json).encode("utf-8")
+                hdrs.setdefault("Content-Type", "application/json; charset=utf-8")
+            elif data is not None:
+                body = data if isinstance(data, bytes) else str(data).encode("utf-8")
+            req = urllib.request.Request(url, data=body, headers=hdrs, method=method.upper())
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    return _ShimResponse(resp.status, resp.read())
+            except urllib.error.HTTPError as e:
+                return _ShimResponse(e.code, e.read())
+
+        @classmethod
+        def post(cls, url, **kwargs):
+            return cls.request("POST", url, **kwargs)
+
+        @classmethod
+        def get(cls, url, **kwargs):
+            return cls.request("GET", url, **kwargs)
 
 
 FEISHU_API_BASE = "https://open.feishu.cn/open-apis"

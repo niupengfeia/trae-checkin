@@ -18,12 +18,6 @@
 import os
 import sys
 
-try:
-    import requests
-except ImportError:
-    print("请先安装依赖：pip install requests", file=sys.stderr)
-    sys.exit(1)
-
 from feishu_bitable import FeishuBitable
 
 

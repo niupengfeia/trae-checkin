@@ -16,3 +16,6 @@ checkin.log
 
 # 本地传输包（勿入库）
 trae-collect-win.zip
+
+# 本地诊断脚本（含个人设备信息，勿入库）
+diag_signed_exchange.py

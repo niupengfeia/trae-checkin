@@ -125,6 +125,22 @@ def get_token_from_cookie(cookie_str: str) -> dict:
     }
 
 
+# ========== Token 失效判定 ==========
+
+def classify_token_error(error_msg: str) -> str:
+    """
+    判定错误是否为 token 失效，返回处理类型：
+    - "recollect": RefreshToken 已被客户端续期/重登顶掉，重新采集即可恢复
+    - "relogin": JWT 认证失败，该账号客户端疑似长期未运行（缓存 JWT 过期），需先打开客户端
+    - "": 与 token 失效无关
+    """
+    if "refresh token is invalid" in error_msg:
+        return "recollect"
+    if "code=1001" in error_msg:
+        return "relogin"
+    return ""
+
+
 # ========== 认证：RefreshToken 换 Token ==========
 
 def exchange_token(refresh_token: str, user_id: str = "") -> dict:
@@ -392,6 +408,7 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
         result["success"] = False
         result["error"] = str(e)
         result["message"] = f"签到失败: {e}"
+        result["token_hint"] = classify_token_error(str(e))
 
     return result
 
@@ -533,10 +550,16 @@ def send_feishu_notification(
                         f"{icon} **{name}**：已签到（当前 {r.get('current_credit', 0)} 积分）"
                     )
             else:
-                err = r.get("error", "未知错误")
-                if len(err) > 80:
-                    err = err[:80] + "..."
-                detail_lines.append(f"{icon} **{name}**：{err}")
+                hint = r.get("token_hint", "")
+                if hint == "recollect":
+                    detail_lines.append(f"{icon} **{name}**：⚠️ RefreshToken 已失效，需重新采集")
+                elif hint == "relogin":
+                    detail_lines.append(f"{icon} **{name}**：⚠️ JWT 认证失败，客户端疑似长期未运行")
+                else:
+                    err = r.get("error", "未知错误")
+                    if len(err) > 80:
+                        err = err[:80] + "..."
+                    detail_lines.append(f"{icon} **{name}**：{err}")
 
         # 汇总字段
         fields = [
@@ -566,6 +589,34 @@ def send_feishu_notification(
                 ],
             },
         ]
+
+        # Token 失效恢复指引（只在有失效账号时出现，给出明确的下一步动作）
+        recollect_names = [
+            r.get("name") or r.get("account", "未知账号")
+            for r in results if r.get("token_hint") == "recollect"
+        ]
+        relogin_names = [
+            r.get("name") or r.get("account", "未知账号")
+            for r in results if r.get("token_hint") == "relogin"
+        ]
+        if recollect_names or relogin_names:
+            guide_lines = ["**🔧 Token 失效恢复指引**"]
+            if recollect_names:
+                guide_lines.append(
+                    f"🔴 **需重新采集**：{'、'.join(recollect_names)}\n"
+                    f"　在装有该账号客户端的电脑上运行 `python3 collect_account_info.py --push --name 账号名`，"
+                    f"新 token 自动写回表格，下次签到恢复。"
+                )
+            if relogin_names:
+                guide_lines.append(
+                    f"🟠 **JWT 已过期**：{'、'.join(relogin_names)}\n"
+                    f"　该账号客户端疑似长期未运行：先打开客户端确认在线，再运行采集脚本 `--push`。"
+                )
+            elements.append({"tag": "hr"})
+            elements.append({
+                "tag": "div",
+                "text": {"tag": "lark_md", "content": "\n".join(guide_lines)},
+            })
 
         # 底部按钮（如果配置了对应 URL）
         actions = []
