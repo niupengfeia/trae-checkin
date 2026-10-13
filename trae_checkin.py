@@ -521,18 +521,15 @@ def send_feishu_notification(
         failed_count = sum(1 for r in results if not r.get("success"))
         total_earned = sum(r.get("earned_credit", 0) for r in results if r.get("success"))
 
-        # 汇总状态
+        # 汇总状态（标题带结果，不用点开卡片就能看出好坏）
         if failed_count > 0:
             status_icon = "⚠️"
-            status_text = f"签到完成（{success_count}/{total} 成功）"
             color = "red"
         elif claimed_count > 0:
             status_icon = "🎉"
-            status_text = f"签到成功（{claimed_count}/{total} 个账号领取）"
             color = "green"
         else:
             status_icon = "✅"
-            status_text = f"签到完成（全部已签到）"
             color = "blue"
 
         # 构造账号明细
@@ -584,7 +581,9 @@ def send_feishu_notification(
                 "elements": [
                     {
                         "tag": "plain_text",
-                        "content": f"⏰ {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))}"
+                        # 固定按北京时间显示（GitHub Actions 服务器是 UTC，
+                        # time.localtime 在那里会显示成 UTC 时间）
+                        "content": f"⏰ {time.strftime('%Y-%m-%d %H:%M:%S', time.gmtime(timestamp + 8 * 3600))}"
                     }
                 ],
             },
@@ -604,13 +603,13 @@ def send_feishu_notification(
             if recollect_names:
                 guide_lines.append(
                     f"🔴 **需重新采集**：{'、'.join(recollect_names)}\n"
-                    f"　在装有该账号客户端的电脑上运行 `python3 collect_account_info.py`，"
-                    f"按用户ID自动匹配表格行并写回新 token，下次签到恢复。"
+                    f"　Windows：双击 `trae-collect-win` 里的「一键采集.bat」（推荐）\n"
+                    f"　Mac：运行 `python3 collect_account_info.py`（按用户ID自动回填表格，下次签到恢复）"
                 )
             if relogin_names:
                 guide_lines.append(
                     f"🟠 **JWT 已过期**：{'、'.join(relogin_names)}\n"
-                    f"　该账号客户端疑似长期未运行：先打开客户端确认在线，再运行采集脚本。"
+                    f"　先打开该账号客户端确认在线，再按上面的方式重新采集一次。"
                 )
             elements.append({"tag": "hr"})
             elements.append({
@@ -647,7 +646,7 @@ def send_feishu_notification(
                 "header": {
                     "title": {
                         "tag": "plain_text",
-                        "content": f"{status_icon} TraeCode 每日签到",
+                        "content": f"{status_icon} TraeCode 每日签到 · {success_count}/{total} 成功",
                     },
                     "template": color,
                 },
