@@ -102,7 +102,12 @@ class FeishuBitable:
             headers={"Content-Type": "application/json"},
             timeout=10,
         )
-        data = resp.json()
+        try:
+            data = resp.json()
+        except ValueError:
+            raise RuntimeError(
+                f"获取飞书 tenant_access_token 响应异常: HTTP {resp.status_code} {resp.text[:120]}"
+            )
         if data.get("code") != 0:
             raise RuntimeError(
                 f"获取飞书 tenant_access_token 失败: code={data.get('code')}, msg={data.get('msg')}"
@@ -125,7 +130,13 @@ class FeishuBitable:
             timeout=15,
             **kwargs,
         )
-        data = resp.json()
+        try:
+            data = resp.json()
+        except ValueError:
+            # 响应不是 JSON（如网关返回 "404 page not found"），给出带状态码的明确错误
+            raise RuntimeError(
+                f"飞书 API 响应异常 {method} {path}: HTTP {resp.status_code} {resp.text[:120]}"
+            )
         if data.get("code") != 0:
             raise RuntimeError(
                 f"飞书 API 请求失败 {method} {path}: code={data.get('code')}, msg={data.get('msg')}"
@@ -176,9 +187,9 @@ class FeishuBitable:
         return data.get("record", {})
 
     def update_record(self, table_id: str, record_id: str, fields: dict) -> dict:
-        """更新一条记录"""
+        """更新一条记录（官方文档为 PUT 单条更新；PATCH 在部分网关不被路由）"""
         data = self._request(
-            "PATCH",
+            "PUT",
             f"/bitable/v1/apps/{self.app_token}/tables/{table_id}/records/{record_id}",
             json={"fields": fields},
         )
