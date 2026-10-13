@@ -247,7 +247,7 @@ git push -u origin main
 
 **方式 A（推荐，一键写入）**：
 
-1. 把 `feishu_config.example.json` 复制为 `feishu_config.json`，填入 4 个参数（该文件含 App Secret，已被 `.gitignore` 排除，不会提交到仓库）
+1. 把 `trae-collect-win/feishu_config.example.json` 复制为同目录的 `feishu_config.json`，填入 4 个参数（配置文件统一放在 `trae-collect-win/` 下，含 App Secret，已被 `.gitignore` 排除不会入库；主目录脚本会自动到该子目录查找）
 2. 在账号对应客户端已登录的机器上，运行：
 
 ```bash

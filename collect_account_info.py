@@ -20,8 +20,10 @@ Trae 账号信息一键采集脚本
   python3 collect_account_info.py --no-verify            # 跳过 RefreshToken 在线验证
 
 自动写入多维表格：
-  凭证从脚本同目录 feishu_config.json 读取（模板见 feishu_config.example.json，
-  该文件含 App Secret，已加入 .gitignore 不会入库），也可用 FEISHU_* 环境变量。
+  凭证从 feishu_config.json 读取：配置文件统一放在 trae-collect-win/ 目录下
+  （模板 trae-collect-win/feishu_config.example.json，填好后改名 feishu_config.json；
+  该文件含 App Secret，已被 .gitignore 排除不会入库），主目录脚本会自动到该子目录查找，
+  也可改用 FEISHU_* 环境变量。
   按「用户ID」精确匹配行：已有该用户ID的行直接覆盖凭证（账号名称保持不变）；
   没有则新建一行（账号名称取 --name，缺省用用户ID）。
   写入会清空该行旧 Cookie，改走 RefreshToken 模式。
@@ -177,14 +179,28 @@ def decrypt_auth_value(b64: str) -> dict:
 
 def load_feishu_config(path: str = "") -> dict:
     """
-    读取飞书凭证配置文件 feishu_config.json（默认找脚本同目录），
-    把其中缺失的项补进环境变量（已设置的环境变量优先，二者可互补）。
+    读取飞书凭证配置文件 feishu_config.json，把其中缺失的项补进环境变量
+    （已设置的环境变量优先，二者可互补）。
+    查找顺序：指定路径 → 脚本同目录 → 脚本同目录的 trae-collect-win 子目录
+    （配置文件只保留在 trae-collect-win/ 下，主目录脚本可共用）。
     该文件含 App Secret，已在 .gitignore 中排除，不会提交到仓库。
     返回实际加载的配置项。
     """
     import pathlib
-    cfg_path = pathlib.Path(path) if path else pathlib.Path(__file__).resolve().parent / "feishu_config.json"
-    if not cfg_path.exists():
+    if path:
+        candidates = [pathlib.Path(path)]
+    else:
+        script_dir = pathlib.Path(__file__).resolve().parent
+        candidates = [
+            script_dir / "feishu_config.json",
+            script_dir / "trae-collect-win" / "feishu_config.json",
+        ]
+    cfg_path = None
+    for cand in candidates:
+        if cand.exists():
+            cfg_path = cand
+            break
+    if cfg_path is None:
         return {}
     try:
         cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
@@ -208,7 +224,8 @@ def push_to_bitable(values: dict, name: str = "") -> bool:
       - 已有该用户ID的行：直接覆盖凭证，账号名称保持原值（传入 name 则顺带改名）
       - 没有：新建一行，账号名称取 name，缺省用用户ID
     写入会清空旧 Cookie（改走 RefreshToken 模式）。
-    凭证从 feishu_config.json（脚本同目录）或 FEISHU_* 环境变量读取。
+    凭证从 feishu_config.json（脚本同目录，主目录脚本会回退到 trae-collect-win/ 子目录查找）
+    或 FEISHU_* 环境变量读取。
     """
     load_feishu_config()
 
@@ -223,7 +240,7 @@ def push_to_bitable(values: dict, name: str = "") -> bool:
     table_id = os.environ.get("FEISHU_BITABLE_ACCOUNT_TABLE", "").strip()
     if not table_id:
         print("❌ 缺少飞书表格配置（FEISHU_BITABLE_ACCOUNT_TABLE）")
-        print("   配置方式：复制 feishu_config.example.json 为 feishu_config.json，填入 4 个参数")
+        print("   配置方式：把 trae-collect-win/feishu_config.example.json 复制为 feishu_config.json，填入 4 个参数")
         print("   （或设置 FEISHU_* 环境变量；配置文件含 App Secret，已被 .gitignore 排除）")
         return False
 
