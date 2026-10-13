@@ -386,21 +386,25 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
                 result["action"] = "status_only"
                 result["message"] = f"今日未签到，当前积分: {current_credit}"
             else:
-                # 3. 领取签到积分（领取响应不含积分字段，本次获得 = 领取前后总积分差值）
+                # 3. 领取签到积分
+                #    实测状态接口的 credits 即"当日签到所得"数字（领取前后不变，
+                #    领取响应本身不含积分字段），因此本次获得直接取 credits，
+                #    不能用领取前后差值（差值恒为 0，v2.5.2 之前的算法由此全部记 0）
                 claim_data = claim_checkin(jwt_token, user_id, account)
                 result["success"] = True
                 result["action"] = "claimed"
                 result["claim_detail"] = claim_data
 
-                # 领取后重查状态拿最新总积分（与网页版行为一致）
+                # 领取后重查状态，确认已翻转为已签到（顺带兜底取积分）
                 new_credit = current_credit
                 try:
                     new_status = get_checkin_status(jwt_token, user_id, account)
                     new_credit = new_status.get("credits", current_credit)
+                    result["status_detail"] = new_status
                 except Exception:
                     pass
                 result["current_credit"] = new_credit
-                earned = max(new_credit - current_credit, 0)
+                earned = max(new_credit, current_credit)
                 result["earned_credit"] = earned
                 result["message"] = f"签到成功，获得 {earned} 积分"
 
@@ -539,16 +543,12 @@ def send_feishu_notification(
             if r.get("success"):
                 if r.get("action") == "claimed":
                     detail_lines.append(
-                        f"{icon} **{name}**：+{r.get('earned_credit', 0)} 积分（当前 {r.get('current_credit', 0)}）"
+                        f"{icon} **{name}**：+{r.get('earned_credit', 0)} 积分"
                     )
                 elif r.get("action") == "disabled":
-                    detail_lines.append(
-                        f"{icon} **{name}**：签到未开放（当前 {r.get('current_credit', 0)} 积分）"
-                    )
+                    detail_lines.append(f"{icon} **{name}**：签到未开放")
                 else:
-                    detail_lines.append(
-                        f"{icon} **{name}**：已签到（当前 {r.get('current_credit', 0)} 积分）"
-                    )
+                    detail_lines.append(f"{icon} **{name}**：已签到")
             else:
                 hint = r.get("token_hint", "")
                 if hint == "recollect":
