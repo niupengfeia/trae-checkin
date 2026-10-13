@@ -604,13 +604,13 @@ def send_feishu_notification(
             if recollect_names:
                 guide_lines.append(
                     f"🔴 **需重新采集**：{'、'.join(recollect_names)}\n"
-                    f"　在装有该账号客户端的电脑上运行 `python3 collect_account_info.py --push --name 账号名`，"
-                    f"新 token 自动写回表格，下次签到恢复。"
+                    f"　在装有该账号客户端的电脑上运行 `python3 collect_account_info.py`，"
+                    f"按用户ID自动匹配表格行并写回新 token，下次签到恢复。"
                 )
             if relogin_names:
                 guide_lines.append(
                     f"🟠 **JWT 已过期**：{'、'.join(relogin_names)}\n"
-                    f"　该账号客户端疑似长期未运行：先打开客户端确认在线，再运行采集脚本 `--push`。"
+                    f"　该账号客户端疑似长期未运行：先打开客户端确认在线，再运行采集脚本。"
                 )
             elements.append({"tag": "hr"})
             elements.append({

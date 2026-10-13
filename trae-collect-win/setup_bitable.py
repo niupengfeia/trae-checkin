@@ -161,8 +161,8 @@ def main():
                 print(f"  FEISHU_BITABLE_LOG_TABLE={log_table_id}")
             print()
             print("💡 下一步：")
-            print("  1. 在装了 Trae 客户端并已登录的机器上运行：python3 collect_account_info.py --push --name 账号名")
-            print("     （自动采集 RefreshToken + 设备参数并写入本表，无需手动复制粘贴）")
+            print("  1. 在装了 Trae 客户端并已登录的机器上运行：python3 collect_account_info.py")
+            print("     （自动采集 RefreshToken + 设备参数，按用户ID写入本表对应行，无需手动复制粘贴）")
             print("  2. 或手动在「账号列表」中填写账号信息，勾选「启用」")
             print("  3. 运行签到脚本测试：python3 trae_checkin.py --status")
         else:

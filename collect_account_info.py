@@ -13,14 +13,17 @@ Trae 账号信息一键采集脚本
   - 客户端版本    x-ide-version 请求头（iCubeLastVersion）
 
 用法：
-  python3 collect_account_info.py                        # 采集最新登录的客户端
+  python3 collect_account_info.py                        # 采集并自动写入飞书多维表格（默认）
+  python3 collect_account_info.py --name 账号2           # 同上；新账号或需要改名时指定账号名称
+  python3 collect_account_info.py --no-push             # 只显示凭证，不写入表格
   python3 collect_account_info.py --list                 # 列出本机所有客户端登录态
   python3 collect_account_info.py --no-verify            # 跳过 RefreshToken 在线验证
-  python3 collect_account_info.py --push --name 账号2     # 采集后直接写入飞书多维表格
 
---push 一键写入（需 pip3 install requests 并配置环境变量）：
-  FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_BITABLE_APP_TOKEN / FEISHU_BITABLE_ACCOUNT_TABLE
-  账号名称与表格中已有名称「完全相等」（区分大小写）才覆盖该行，否则新建一行；
+自动写入多维表格：
+  凭证从脚本同目录 feishu_config.json 读取（模板见 feishu_config.example.json，
+  该文件含 App Secret，已加入 .gitignore 不会入库），也可用 FEISHU_* 环境变量。
+  按「用户ID」精确匹配行：已有该用户ID的行直接覆盖凭证（账号名称保持不变）；
+  没有则新建一行（账号名称取 --name，缺省用用户ID）。
   写入会清空该行旧 Cookie，改走 RefreshToken 模式。
 
 仅依赖 Python 标准库（AES 解密依次尝试 pycryptodome / cryptography / openssl 命令行）。
@@ -172,26 +175,56 @@ def decrypt_auth_value(b64: str) -> dict:
         raise ValueError(f"登录态解密失败: {e}")
 
 
-def push_to_bitable(name: str, values: dict) -> bool:
+def load_feishu_config(path: str = "") -> dict:
+    """
+    读取飞书凭证配置文件 feishu_config.json（默认找脚本同目录），
+    把其中缺失的项补进环境变量（已设置的环境变量优先，二者可互补）。
+    该文件含 App Secret，已在 .gitignore 中排除，不会提交到仓库。
+    返回实际加载的配置项。
+    """
+    import pathlib
+    cfg_path = pathlib.Path(path) if path else pathlib.Path(__file__).resolve().parent / "feishu_config.json"
+    if not cfg_path.exists():
+        return {}
+    try:
+        cfg = json.loads(cfg_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError) as e:
+        print(f"⚠️  feishu_config.json 解析失败: {e}")
+        return {}
+    loaded = {}
+    for key in ("FEISHU_APP_ID", "FEISHU_APP_SECRET",
+                "FEISHU_BITABLE_APP_TOKEN", "FEISHU_BITABLE_ACCOUNT_TABLE"):
+        val = str(cfg.get(key, "")).strip()
+        if val and not os.environ.get(key):
+            os.environ[key] = val
+            loaded[key] = val
+    return loaded
+
+
+def push_to_bitable(values: dict, name: str = "") -> bool:
     """
     把采集值写入飞书多维表格「账号列表」。
-    账号名称「完全相等」才覆盖该行，否则新建一行（区分大小写）：
-    「账号1」与「账号1」视为不同账号，各自成行。
+    按「用户ID」精确匹配行（用户ID稳定唯一，不依赖账号名称拼写）：
+      - 已有该用户ID的行：直接覆盖凭证，账号名称保持原值（传入 name 则顺带改名）
+      - 没有：新建一行，账号名称取 name，缺省用用户ID
     写入会清空旧 Cookie（改走 RefreshToken 模式）。
+    凭证从 feishu_config.json（脚本同目录）或 FEISHU_* 环境变量读取。
     """
+    load_feishu_config()
+
     try:
         from feishu_bitable import FeishuBitable, _extract_text
         from setup_bitable import ACCOUNT_TABLE_FIELDS
     except ImportError as e:
-        print(f"❌ --push 需要 requests 库且须在项目目录下运行: {e}")
-        print("   先执行: pip3 install requests")
-        print("   或去掉 --push，手动把输出的值粘贴到多维表格")
+        print(f"❌ 写入多维表格需要 feishu_bitable.py / setup_bitable.py 且须在项目目录下运行: {e}")
         return False
 
+    user_id = str(values.get("user_id", "")).strip()
     table_id = os.environ.get("FEISHU_BITABLE_ACCOUNT_TABLE", "").strip()
     if not table_id:
-        print("❌ 缺少环境变量 FEISHU_BITABLE_ACCOUNT_TABLE（账号表 table_id）")
-        print("   获取方式：setup_bitable.py 运行输出的 FEISHU_BITABLE_ACCOUNT_TABLE")
+        print("❌ 缺少飞书表格配置（FEISHU_BITABLE_ACCOUNT_TABLE）")
+        print("   配置方式：复制 feishu_config.example.json 为 feishu_config.json，填入 4 个参数")
+        print("   （或设置 FEISHU_* 环境变量；配置文件含 App Secret，已被 .gitignore 排除）")
         return False
 
     try:
@@ -207,31 +240,40 @@ def push_to_bitable(name: str, values: dict) -> bool:
                 except Exception as e:
                     print(f"     [警告] 创建失败: {e}")
 
+        # 按「用户ID」精确匹配行
+        record_id = ""
+        row_name = ""
+        for rec in bitable.list_records(table_id):
+            if _extract_text(rec.get("fields", {}).get("用户ID")) == user_id:
+                record_id = rec.get("record_id", "")
+                row_name = _extract_text(rec.get("fields", {}).get("账号名称"))
+                break
+
         fields = {
-            "账号名称": name,
             "Cookie": "",  # 清空旧 Cookie，强制走 RefreshToken 模式
             "RefreshToken": values["refresh_token"],
-            "用户ID": values["user_id"],
+            "用户ID": user_id,
             "设备ID": values["device_id"],
             "机器ID": values["machine_id"],
             "客户端版本": values["ide_version"],
             "启用": True,
         }
 
-        # 账号名称完全相等才覆盖该行，否则新建一行
-        # （区分大小写：账号1 ≠ 账号1，两个名字各自成行）
-        record_id = ""
-        for rec in bitable.list_records(table_id):
-            if _extract_text(rec.get("fields", {}).get("账号名称")) == name:
-                record_id = rec.get("record_id", "")
-                break
-
         if record_id:
+            # 已有账号：覆盖凭证；只有显式传 --name 才更新账号名称
+            if name:
+                fields["账号名称"] = name
+                row_name = name
             bitable.update_record(table_id, record_id, fields)
-            print(f"✅ 已更新多维表格账号「{name}」（table_id: {table_id}）")
+            print(f"✅ 已更新多维表格账号「{row_name}」（用户ID: {user_id}）")
         else:
+            # 全新账号：新建一行；输出用户ID便于区分这是谁的账号
+            row_name = name or user_id
+            fields["账号名称"] = row_name
             bitable.create_record(table_id, fields)
-            print(f"✅ 已新建多维表格账号「{name}」（table_id: {table_id}）")
+            print(f"🆕 表格中无此用户ID，已新建账号行「{row_name}」（用户ID: {user_id}）")
+            if not name:
+                print("    ⚠️  新行账号名称暂用用户ID，建议加 --name 人名重跑，或到表格中直接改名")
         return True
     except Exception as e:
         print(f"❌ 写入多维表格失败: {e}")
@@ -290,8 +332,8 @@ def main() -> int:
     parser.add_argument("--list", action="store_true", help="仅列出本机所有客户端登录态")
     parser.add_argument("--no-verify", action="store_true", help="跳过 RefreshToken 在线验证")
     parser.add_argument("--json", action="store_true", help="JSON 输出（便于脚本处理）")
-    parser.add_argument("--push", action="store_true", help="采集后直接写入飞书多维表格（需配置 FEISHU_* 环境变量）")
-    parser.add_argument("--name", default="", help="账号显示名（--push 用；缺省用用户ID）")
+    parser.add_argument("--no-push", action="store_true", help="只显示凭证，不写入飞书多维表格")
+    parser.add_argument("--name", default="", help="账号显示名（新账号或改名时填；已有账号按用户ID自动匹配，可不填）")
     args = parser.parse_args()
 
     candidates = storage_candidates()
@@ -381,22 +423,21 @@ def main() -> int:
         print("      可能凭证已过期，请在客户端中重新登录后再运行本脚本")
     print()
 
-    if args.push:
+    if args.no_push:
+        print("💡 提示：本脚本默认自动写入多维表格（按用户ID匹配行），加 --no-push 可只查看不写入")
+    else:
         print("── 写入多维表格 ──")
         if verify is not None and not verify.get("ok"):
             print("  [✗] RefreshToken 无效，已跳过写入（请在客户端重新登录后再采集）")
             return 1
-        name = args.name.strip() or user_id or "未命名账号"
-        if not push_to_bitable(name, {
+        if not push_to_bitable({
             "refresh_token": refresh_token,
             "user_id": user_id,
             "device_id": info["device_id"],
             "machine_id": info["machine_id"],
             "ide_version": info["ide_version"],
-        }):
+        }, args.name.strip()):
             return 1
-    else:
-        print("💡 提示：加 --push --name 账号名 可把以上值一键写入多维表格（推荐）")
     print()
     print("⚠️  以上值包含敏感凭证，仅限粘贴到自己的多维表格，请勿外传。")
     return 0
