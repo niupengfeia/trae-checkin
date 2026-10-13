@@ -603,8 +603,8 @@ def send_feishu_notification(
             if recollect_names:
                 guide_lines.append(
                     f"🔴 **需重新采集**：{'、'.join(recollect_names)}\n"
-                    f"　Windows：双击 `trae-collect-win` 里的「一键采集.bat」（推荐）\n"
-                    f"　Mac：运行 `python3 collect_account_info.py`（按用户ID自动回填表格，下次签到恢复）"
+                    f"　Windows：双击 `trae-collect-win` 里的「一键采集.bat」\n"
+                    f"　Mac：运行 `python3 collect_account_info.py`"
                 )
             if relogin_names:
                 guide_lines.append(
