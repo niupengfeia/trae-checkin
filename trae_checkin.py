@@ -370,26 +370,23 @@ def checkin_single(account: dict, status_only: bool = False) -> dict:
                 result["action"] = "status_only"
                 result["message"] = f"今日未签到，当前积分: {current_credit}"
             else:
-                # 3. 领取签到积分
+                # 3. 领取签到积分（领取响应不含积分字段，本次获得 = 领取前后总积分差值）
                 claim_data = claim_checkin(jwt_token, user_id, account)
-                earned = (claim_data.get("gained_credits")
-                          or claim_data.get("credits_gained")
-                          or claim_data.get("reward")
-                          or claim_data.get("extra_credits")
-                          or claim_data.get("credits")
-                          or 0)
                 result["success"] = True
                 result["action"] = "claimed"
-                result["earned_credit"] = earned
                 result["claim_detail"] = claim_data
-                result["message"] = f"签到成功，获得 {earned} 积分"
 
                 # 领取后重查状态拿最新总积分（与网页版行为一致）
+                new_credit = current_credit
                 try:
                     new_status = get_checkin_status(jwt_token, user_id, account)
-                    result["current_credit"] = new_status.get("credits", current_credit)
+                    new_credit = new_status.get("credits", current_credit)
                 except Exception:
                     pass
+                result["current_credit"] = new_credit
+                earned = max(new_credit - current_credit, 0)
+                result["earned_credit"] = earned
+                result["message"] = f"签到成功，获得 {earned} 积分"
 
     except Exception as e:
         result["success"] = False
