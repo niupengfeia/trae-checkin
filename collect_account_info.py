@@ -229,6 +229,12 @@ def push_to_bitable(values: dict, name: str = "") -> bool:
     """
     load_feishu_config()
 
+    # Windows 便携版 Python（embeddable 发行版）带 ._pth 文件时不把脚本目录
+    # 自动加入 sys.path，同目录模块会报 No module named，这里手动补上
+    pkg_dir = os.path.dirname(os.path.abspath(__file__))
+    if pkg_dir not in sys.path:
+        sys.path.insert(0, pkg_dir)
+
     try:
         from feishu_bitable import FeishuBitable, _extract_text
         from setup_bitable import ACCOUNT_TABLE_FIELDS
