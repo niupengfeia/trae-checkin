@@ -23,6 +23,7 @@ trae-checkin/
 ├── collect_account_info.py  # 账号信息一键采集（RefreshToken + 设备指纹）
 ├── 一键采集.command           # Mac 双击入口：采集 + 自动推送（等效 Windows 的 bat）
 ├── trae-collect-win/        # Windows 免安装采集包（自带便携 Python，无需装环境）
+├── trae-collect-mac/        # Mac 免配置采集包（打开就能用，系统自带 python3 零依赖）
 ├── feishu_bitable.py        # 飞书多维表格模块（读账号、写日志）
 ├── setup_bitable.py         # 多维表格字段初始化脚本
 ├── run_checkin.sh           # Shell 包装脚本（带日志）
@@ -258,7 +259,7 @@ python3 collect_account_info.py --name 账号2  # 新账号：同时指定账号
 
 脚本自动采集 RefreshToken + 设备指纹并写入多维表格（按「用户ID」匹配行：已有则覆盖凭证，没有则新建一行；自动清空旧 Cookie 改走 RefreshToken 模式）。有几个账号就在各自机器上各跑一次。
 
-> 💡 **Mac 版**：仓库根目录自带 `一键采集.command`，双击即完成"采集 + 自动推送"（依赖系统自带 python3，缺 AES 库时自动走 openssl 兜底，**无需 pip 安装任何包**）。若文件是从压缩包解出后双击被拦（"未验证的开发者"），终端执行 `xattr -d com.apple.quarantine 一键采集.command`；提示无执行权限则先 `chmod +x 一键采集.command`。
+> 💡 **Mac 免配置包**：仓库内 `trae-collect-mac/` 目录打开就能用——双击「一键采集.command」即完成"采集 + 自动推送"（依赖系统自带 python3，缺 AES 库自动走 openssl 兜底，**无需 pip 安装任何包**）。若文件从压缩包解出后双击被拦（"未验证的开发者"），终端执行 `xattr -d com.apple.quarantine 一键采集.command`；提示无执行权限则先 `chmod +x 一键采集.command`（详见目录内 `使用说明.txt`）。
 >
 > 💡 **Windows 免安装版**：仓库内 `trae-collect-win/` 目录自带便携版 Python（含解密和飞书请求所需的全部依赖，无需安装任何环境）。拷到目标电脑（或直接 clone 仓库）后，把 `feishu_config.example.json` 复制为 `feishu_config.json` 填好 4 个参数，双击「一键采集.bat」即可自动采集并写回表格（详见目录内 `使用说明.txt`）。
 
@@ -401,6 +402,7 @@ A: 风险极低。脚本调用的是官方 API，行为和手动签到完全一�
 
 ## 📝 更新日志
 
+- **v2.5.6** - 新增 Mac 免配置采集包 `trae-collect-mac/`（镜像 Windows 包布局，打开就能用）：双击 `一键采集.command` 即"采集 + 自动推送"，自带配置模板与使用说明（UTF-8），零 pip 依赖；真实配置文件与 Windows 包共用 gitignore 规则不入库。已在包内位置实测完整推送链路
 - **v2.5.5** - 新增 Mac 一键采集入口：仓库根目录 `一键采集.command`，双击即完成"采集 + 自动推送"（功能与 Windows 的 bat 完全一致）。零依赖：系统自带 python3 即可，缺 AES 库自动走 openssl 兜底、缺 requests 自动走标准库垫片，无需 pip 安装；已实测干净环境解密路径与完整推送链路。分发到其他 Mac 时若被 Gatekeeper 拦截，见 README 内 xattr 说明
 
 - **v2.5.4** - 修复 Windows 采集包在成员机器上报 `No module named 'feishu_bitable'`：便携版 Python（embeddable 发行版）的 `._pth` 文件不把脚本目录自动加入 sys.path，同目录模块导入不到；推送前手动补上脚本目录（已模拟 ._pth 环境验证导入成功且指向包内文件）
