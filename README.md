@@ -21,6 +21,7 @@
 trae-checkin/
 ├── trae_checkin.py          # 主签到脚本（单账号/多账号）
 ├── collect_account_info.py  # 账号信息一键采集（RefreshToken + 设备指纹）
+├── 一键采集.command           # Mac 双击入口：采集 + 自动推送（等效 Windows 的 bat）
 ├── trae-collect-win/        # Windows 免安装采集包（自带便携 Python，无需装环境）
 ├── feishu_bitable.py        # 飞书多维表格模块（读账号、写日志）
 ├── setup_bitable.py         # 多维表格字段初始化脚本
@@ -257,6 +258,8 @@ python3 collect_account_info.py --name 账号2  # 新账号：同时指定账号
 
 脚本自动采集 RefreshToken + 设备指纹并写入多维表格（按「用户ID」匹配行：已有则覆盖凭证，没有则新建一行；自动清空旧 Cookie 改走 RefreshToken 模式）。有几个账号就在各自机器上各跑一次。
 
+> 💡 **Mac 版**：仓库根目录自带 `一键采集.command`，双击即完成"采集 + 自动推送"（依赖系统自带 python3，缺 AES 库时自动走 openssl 兜底，**无需 pip 安装任何包**）。若文件是从压缩包解出后双击被拦（"未验证的开发者"），终端执行 `xattr -d com.apple.quarantine 一键采集.command`；提示无执行权限则先 `chmod +x 一键采集.command`。
+>
 > 💡 **Windows 免安装版**：仓库内 `trae-collect-win/` 目录自带便携版 Python（含解密和飞书请求所需的全部依赖，无需安装任何环境）。拷到目标电脑（或直接 clone 仓库）后，把 `feishu_config.example.json` 复制为 `feishu_config.json` 填好 4 个参数，双击「一键采集.bat」即可自动采集并写回表格（详见目录内 `使用说明.txt`）。
 
 **方式 B（手动）**：打开「账号列表」表 → 新增一行：
@@ -301,7 +304,7 @@ python3 collect_account_info.py --name 账号2  # 新账号：同时指定账号
 - 签到脚本会自动识别失效并在飞书卡片上标出**哪个账号失效、怎么恢复**，不需要翻日志找原因
 - 恢复只要一步（约 30 秒）：在装有该账号客户端的机器上运行
   `python3 collect_account_info.py`
-  （Windows 双击「一键采集.bat」）
+  （Windows 双击「一键采集.bat」；Mac 双击「一键采集.command」）
   按用户ID自动匹配表格行并写回新凭证，下次签到自动恢复，**无需复制粘贴**
 
 两种失效类型的对照（卡片提示已区分）：
@@ -397,6 +400,8 @@ A: 风险极低。脚本调用的是官方 API，行为和手动签到完全一�
 - 请遵守 TraeCode / TraeWork 的用户协议
 
 ## 📝 更新日志
+
+- **v2.5.5** - 新增 Mac 一键采集入口：仓库根目录 `一键采集.command`，双击即完成"采集 + 自动推送"（功能与 Windows 的 bat 完全一致）。零依赖：系统自带 python3 即可，缺 AES 库自动走 openssl 兜底、缺 requests 自动走标准库垫片，无需 pip 安装；已实测干净环境解密路径与完整推送链路。分发到其他 Mac 时若被 Gatekeeper 拦截，见 README 内 xattr 说明
 
 - **v2.5.4** - 修复 Windows 采集包在成员机器上报 `No module named 'feishu_bitable'`：便携版 Python（embeddable 发行版）的 `._pth` 文件不把脚本目录自动加入 sys.path，同目录模块导入不到；推送前手动补上脚本目录（已模拟 ._pth 环境验证导入成功且指向包内文件）
 - **v2.5.3** - 飞书卡片优化：① 标题带结果（"⚠️ TraeCode 每日签到 · 2/4 成功"，通知列表里不用点开就能判断好坏）② 卡片时间固定按北京时间显示（GitHub Actions 服务器是 UTC，此前显示的其实是 UTC 时间，如 20:47 显示成 12:47）③ 失效恢复指引补 Windows 双击说明（Windows 成员双击「一键采集.bat」即可，Mac 命令保留）

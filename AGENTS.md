@@ -17,6 +17,7 @@ TraeCode/TraeWork 每日自动签到：GitHub Actions 定时（北京时间 00:2
 | `feishu_bitable.py` | 飞书表客户端 | 无 requests 时自动退化为 urllib 垫片；单条更新必须 PUT |
 | `setup_bitable.py` | 表字段初始化 | 同样需同步 Win 副本 |
 | `trae-collect-win/` | Windows 免安装采集包 | 便携 Python 为 embeddable 发行版；bat/txt 为 GBK 编码 |
+| `一键采集.command` | Mac 双击入口（等效 bat） | UTF-8；零依赖（系统 python3 + openssl 兜底 + urllib 垫片）；分发给其他 Mac 需 `xattr -d com.apple.quarantine` 去 Gatekeeper 拦截 |
 | `.github/workflows/daily-checkin.yml` | 定时任务 | 凭证全部走 Actions secrets（FEISHU_APP_ID / FEISHU_APP_SECRET / FEISHU_BITABLE_APP_TOKEN / FEISHU_BITABLE_ACCOUNT_TABLE / FEISHU_BITABLE_LOG_TABLE / 飞书 webhook 及两个跳转 URL） |
 
 ## 关键实测结论（逆向验证过，勿凭猜测推翻）
@@ -47,8 +48,8 @@ TraeCode/TraeWork 每日自动签到：GitHub Actions 定时（北京时间 00:2
 
 ## 运维模式（刻意手动，不做自动任务）
 
-- 失效恢复：飞书卡片标红某账号 → 该账号主人在 Windows 双击 `trae-collect-win/一键采集.bat`（Mac 跑 `python3 collect_account_info.py`）→ 自动回填 → 下轮签到恢复
-- 分发：压缩整个 `trae-collect-win/` 分发给各成员机器（内含已填好的真实配置，不入 git）
+- 失效恢复：飞书卡片标红某账号 → 该账号主人双击对应平台的采集入口（Windows：`trae-collect-win/一键采集.bat`；Mac：根目录 `一键采集.command`）→ 自动回填 → 下轮签到恢复
+- 分发：Windows 压缩整个 `trae-collect-win/`；Mac 把根目录的 `collect_account_info.py / feishu_bitable.py / setup_bitable.py / 一键采集.command / feishu_config.json` 打包（内含真实配置，不入 git）
 - 每次改动：README「更新日志」补一条（变更的权威记录）；提交信息用中文一句话说清 why + what
 
 ## 遗留事项
